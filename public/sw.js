@@ -4,7 +4,7 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '//assets/logo.png',
+  '/assets/logo.png',
   '/icon-512.svg'
 ];
 
@@ -35,8 +35,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'MARASSEURAVIE',
     body: 'Nouvelle notification officielle.',
-    icon: '//assets/logo.png',
-    badge: '//assets/logo.png',
+    icon: '/assets/logo.png',
+    badge: '/assets/logo.png',
     data: { url: '/admin' }
   };
 
@@ -46,8 +46,8 @@ self.addEventListener('push', (event) => {
       data = {
         title: payload.title || payload.notification?.title || data.title,
         body: payload.body || payload.message || payload.notification?.body || data.body,
-        icon: payload.icon || payload.notification?.icon || '//assets/logo.png',
-        badge: payload.badge || '//assets/logo.png',
+        icon: payload.icon || payload.notification?.icon || '/assets/logo.png',
+        badge: payload.badge || '/assets/logo.png',
         image: payload.image || payload.imageUrl || payload.notification?.image,
         data: payload.data || { url: payload.actionUrl || payload.url || '/admin' },
         tag: payload.tag || `mav-${Date.now()}`,

@@ -119,8 +119,8 @@ async function sendNotificationToAdmins(payload: {
   const payloadString = JSON.stringify({
     title: payload.title,
     body: payload.body,
-    icon: payload.icon || '//assets/logo.png',
-    badge: payload.badge || '//assets/logo.png',
+    icon: payload.icon || '/assets/logo.png',
+    badge: payload.badge || '/assets/logo.png',
     image: payload.image,
     data: {
       url: actionUrl,

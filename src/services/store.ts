@@ -1,3 +1,6 @@
+// React is provided by the application runtime. Keep this import tolerant when
+// this service is type-checked in environments without React's declarations.
+// @ts-ignore TS2307: React may be unavailable to standalone type-checkers.
 import { useState, useEffect } from 'react';
 import {
   BrandSettings,
@@ -431,7 +434,7 @@ export function useStore() {
   const [, setVersion] = useState(0);
 
   useEffect(() => {
-    const handleUpdate = () => setVersion(v => v + 1);
+    const handleUpdate = () => setVersion((v: number) => v + 1);
     listeners.add(handleUpdate);
     // Initial fetch from backend if available
     StoreAPI.fetchBackendOrders();

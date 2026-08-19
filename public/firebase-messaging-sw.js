@@ -15,8 +15,8 @@ self.addEventListener('push', (event) => {
     const title = payload.notification?.title || payload.title || '🛍️ Nouvelle commande — MARASSEURAVIE';
     const options = {
       body: payload.notification?.body || payload.body || payload.message || 'Détails de commande reçus.',
-      icon: '//assets/logo.png',
-      badge: '//assets/logo.png',
+      icon: '/assets/logo.png',
+      badge: '/assets/logo.png',
       image: payload.notification?.image || payload.image,
       data: payload.data || { url: '/admin/orders' },
       tag: 'mav-order-notification',

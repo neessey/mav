@@ -60,7 +60,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Top editorial line */}
         <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
-          <span className="font-mono-brand text-[10px] uppercase tracking-[0.3em] text-white/60">
+          <span className="font-mono-brand right-5 text-[10px] uppercase tracking-[0.3em] text-white/60">
             MARASSEURAVIE®
           </span>
 
@@ -102,13 +102,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </button>
 
-                <button
-                  onClick={() => onNavigate('about')}
-                  className="group inline-flex items-center gap-2 px-4 py-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/70 transition-colors hover:text-white"
-                >
-                  Notre histoire
-                  <MoveUpRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </button>
+               
               </div>
             </div>
           </div>
