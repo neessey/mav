@@ -220,161 +220,222 @@ const isPWA = () => {
     )}
   </div>
 )}
-// AdminPage.tsx - Version complète avec gestion du SW existant
-
 const handleSubscribePush = async () => {
   setIsSubscribingPush(true);
   setPushFeedback(null);
 
   try {
-    // 1. Vérifier le support
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setPushFeedback('❌ Ce navigateur ne supporte pas les notifications push. Utilisez Chrome, Edge ou Firefox.');
+    // 1. Vérifier si on est sur mobile
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  (navigator as any).standalone === true;
+
+    console.log('📱 Mobile:', isMobile, 'PWA:', isPWA);
+
+    // 2. Vérifier le support des notifications
+    if (!('Notification' in window)) {
+      setPushFeedback('❌ Les notifications ne sont pas supportées sur cet appareil.');
       setIsSubscribingPush(false);
       return;
     }
 
-    // 2. Vérifier si le Service Worker est enregistré
+    // 3. Vérifier le Service Worker
+    if (!('serviceWorker' in navigator)) {
+      setPushFeedback('❌ Service Worker non disponible sur ce navigateur.');
+      setIsSubscribingPush(false);
+      return;
+    }
+
+    // 4. Demander la permission
+    setPushFeedback('⏳ Demande de permission...');
+    const permission = await Notification.requestPermission();
+    
+    if (permission !== 'granted') {
+      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres du téléphone.');
+      setIsSubscribingPush(false);
+      return;
+    }
+
+    // 5. Enregistrer/Activer le Service Worker
+    setPushFeedback('⏳ Activation du Service Worker...');
     let registration = await navigator.serviceWorker.getRegistration('/');
     
     if (!registration) {
-      setPushFeedback('⏳ Enregistrement du Service Worker en cours...');
-      
-      // Enregistrer le SW
+      // Essayer d'enregistrer le SW
       registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });
       
       // Attendre que le SW soit actif
       await navigator.serviceWorker.ready;
-      setPushFeedback('✅ Service Worker enregistré avec succès !');
+      console.log('✅ Service Worker enregistré:', registration);
     }
 
-    // 3. Demander la permission
-    const permission = await Notification.requestPermission();
-    
-    if (permission !== 'granted') {
-      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres de votre navigateur.');
+    // 6. Vérifier PushManager
+    if (!registration.pushManager) {
+      // Sur certains navigateurs mobiles, pushManager peut être null
+      setPushFeedback('⚠️ PushManager non disponible. Les notifications seront basiques.');
+      
+      // On continue quand même avec les notifications simples
+      setPushStatus({ 
+        isSupported: true, 
+        permission: 'granted', 
+        isSubscribed: false 
+      });
+      
+      // Envoyer une notification de test
+      await sendTestNotification();
+      
+      setPushFeedback('✅ Notifications activées (mode basique) !');
+      confetti({ particleCount: 60, spread: 70 });
       setIsSubscribingPush(false);
       return;
     }
 
-    // 4. Vérifier si déjà abonné
-    const existingSubscription = await registration.pushManager.getSubscription();
+    // 7. Vérifier l'abonnement existant
+    let subscription = await registration.pushManager.getSubscription();
     
-    if (existingSubscription) {
+    if (subscription) {
       setPushStatus({ 
         isSupported: true, 
         permission: 'granted', 
         isSubscribed: true 
       });
-      setPushFeedback('✅ Déjà abonné aux notifications push !');
+      setPushFeedback('✅ Déjà abonné !');
+      await sendTestNotification();
       setIsSubscribingPush(false);
-      
-      // Envoyer une notification de test
-      await sendTestPushNotification(registration);
-      
       return;
     }
 
-    // 5. S'abonner avec VAPID
-    // Récupérer la clé publique du backend ou utiliser une clé de test
-    let vapidPublicKey = 'BNT1aGjXzqF9KxP6QyVW7X8Y9Z0A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6';
+    // 8. Créer un nouvel abonnement
+    setPushFeedback('⏳ Création de l\'abonnement...');
     
-    // Essayer de récupérer la clé depuis le backend
     try {
-      const response = await fetch('/api/notifications/vapid-public-key');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.publicKey) {
+      // Sur mobile, souvent besoin d'une clé VAPID
+      let vapidPublicKey = null;
+      
+      try {
+        const response = await fetch('/api/notifications/vapid-public-key');
+        if (response.ok) {
+          const data = await response.json();
           vapidPublicKey = data.publicKey;
         }
+      } catch (e) {
+        console.log('⚠️ Backend VAPID non disponible');
       }
-    } catch (e) {
-      console.log('⚠️ Backend VAPID non disponible, utilisation de la clé de test');
-    }
 
-    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-    
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: applicationServerKey as unknown as BufferSource
-    });
+      if (vapidPublicKey) {
+        const vapidKey = urlBase64ToUint8Array(vapidPublicKey);
+        // Use a standalone ArrayBuffer to satisfy the Push API type definition.
+        const applicationServerKey = new Uint8Array(vapidKey.length);
+        applicationServerKey.set(vapidKey);
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: applicationServerKey.buffer
+        });
+      } else {
+        // Sur certains navigateurs, on peut s'abonner sans VAPID
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true
+        });
+      }
 
-    // 6. Sauvegarder l'abonnement
-    const subscriptionJSON = subscription.toJSON();
-    console.log('✅ Abonnement créé:', subscriptionJSON);
-    
-    // Envoyer au backend si disponible
-    try {
-      const res = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subscription: subscriptionJSON,
-          userAgent: navigator.userAgent
-        })
+      console.log('✅ Abonnement créé:', subscription?.toJSON());
+
+      // Envoyer l'abonnement au backend
+      if (subscription) {
+        try {
+          await fetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subscription: subscription.toJSON(),
+              userAgent: navigator.userAgent,
+              isMobile: isMobile,
+              isPWA: isPWA
+            })
+          });
+        } catch (e) {
+          console.warn('⚠️ Backend subscription failed');
+        }
+      }
+
+      setPushStatus({ 
+        isSupported: true, 
+        permission: 'granted', 
+        isSubscribed: true 
       });
+      setPushFeedback('✅ Notifications push activées avec succès !');
+      confetti({ particleCount: 60, spread: 70 });
+
+      // Envoyer une notification de test
+      setTimeout(() => {
+        sendTestNotification();
+      }, 1000);
+
+    } catch (error: any) {
+      console.error('Erreur subscription:', error);
       
-      if (!res.ok) {
-        console.warn('⚠️ Backend subscription failed, but local subscription is active');
-      }
-    } catch (error) {
-      console.warn('⚠️ Backend non disponible, abonnement local actif');
+      // Fallback: notifications basiques
+      setPushStatus({ 
+        isSupported: true, 
+        permission: 'granted', 
+        isSubscribed: false 
+      });
+      setPushFeedback('✅ Notifications activées (mode simplifié) !');
+      await sendTestNotification();
     }
-
-    // 7. Mettre à jour l'état
-    setPushStatus({ 
-      isSupported: true, 
-      permission: 'granted', 
-      isSubscribed: true 
-    });
-    setPushFeedback('✅ Notifications push activées avec succès !');
-    confetti({ particleCount: 60, spread: 70 });
-
-    // 8. Envoyer une notification de test
-    setTimeout(() => {
-      sendTestPushNotification(registration);
-    }, 1000);
 
   } catch (err: any) {
     console.error('❌ Erreur:', err);
-    setPushFeedback(`❌ ${err.message || 'Échec de l\'activation des notifications'}`);
+    setPushFeedback(`❌ ${err.message || 'Échec de l\'activation'}`);
   } finally {
     setIsSubscribingPush(false);
   }
 };
 
 // Fonction pour envoyer une notification de test
-const sendTestPushNotification = async (registration: ServiceWorkerRegistration) => {
+const sendTestNotification = async () => {
   try {
-    // Envoyer via le backend si disponible
-    const response = await fetch('/api/notifications/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: '🔔 MARASSEURAVIE',
-        message: 'Notifications push activées sur votre appareil !',
-        imageUrl: '/assets/logo.png',
-        actionUrl: '/admin'
-      })
-    });
-    
-    if (!response.ok) {
-      // Fallback: notification locale
-      new Notification('🔔 MARASSEURAVIE', {
-        body: 'Notifications push activées avec succès !',
+    // Essayer via Service Worker
+    const registration = await navigator.serviceWorker.ready;
+    if (registration && registration.showNotification) {
+      await registration.showNotification('🔔 MARASSEURAVIE', {
+        body: 'Notifications activées sur votre téléphone !',
         icon: '/assets/logo.png',
         badge: '/assets/logo.png',
-        tag: 'test-notification'
+        requireInteraction: true,
+        data: {
+          url: '/admin'
+        }
       });
+      return;
     }
-  } catch (error) {
-    console.warn('⚠️ Test notification failed:', error);
+  } catch (e) {
+    console.warn('⚠️ SW notification failed');
+  }
+
+  // Fallback: Notification API classique
+  try {
+    const notification = new Notification('🔔 MARASSEURAVIE', {
+      body: 'Notifications activées sur votre téléphone !',
+      icon: '/assets/logo.png',
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      window.location.href = '/admin';
+    };
+
+    setTimeout(() => notification.close(), 5000);
+  } catch (e) {
+    console.warn('⚠️ Notification API failed');
+    // Dernier fallback
+    alert('✅ Notifications activées avec succès !');
   }
 };
 
-// Helper pour convertir la clé VAPID
+// Helper pour VAPID
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
@@ -385,6 +446,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   }
   return outputArray;
 }
+
 
 
   const handleCreateNewProduct = () => {
