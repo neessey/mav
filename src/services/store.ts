@@ -16,6 +16,7 @@ import {
   INITIAL_PRODUCTS,
   INITIAL_SETTINGS
 } from '../data/initialData';
+import { FirebaseService } from './firebaseConfig';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'mav_products_v1',
@@ -180,115 +181,113 @@ export const StoreAPI = {
   getOrders: (): Order[] => loadData(STORAGE_KEYS.ORDERS, INITIAL_ORDERS),
   setOrders: (orders: Order[]) => saveData(STORAGE_KEYS.ORDERS, orders),
 
-  fetchBackendOrders: async (): Promise<Order[]> => {
-    try {
-      const res = await fetch('/api/orders');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          StoreAPI.setOrders(data);
-          return data;
-        }
-      }
-    } catch (e) {
-      console.warn('Backend orders fetch fallback to localStorage:', e);
-    }
+ fetchBackendOrders: async (): Promise<Order[]> => {
+  try {
+    const orders = await FirebaseService.getOrders();
+
+    StoreAPI.setOrders(orders);
+
+    return orders;
+  } catch (error) {
+    console.error(
+      'Erreur récupération commandes Firestore:',
+      error
+    );
+
     return StoreAPI.getOrders();
-  },
+  }
+},
+createOrder: async (orderData: { items: any; totalAmount: any; customerName: any; customerPhone: any; customerCity: any; whatsappMessage: any; whatsappUrl: any; notes: any; }) => {
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const fallbackId = `MAV-${new Date().getFullYear()}-${randomSuffix}`;
 
-  createOrder: async (orderData: {
-    items: {
-      productId: string;
-      name: string;
-      size: string;
-      color: string;
-      quantity: number;
-      unitPrice: number;
-      total: number;
-      image?: string;
-    }[];
-    totalAmount: number;
-    customerName?: string;
-    customerPhone?: string;
-    customerCity?: string;
-    whatsappMessage?: string;
-    whatsappUrl?: string;
-    notes?: string;
-  }): Promise<Order> => {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const fallbackId = `MAV-${new Date().getFullYear()}-${randomSuffix}`;
+  const order = {
+    id: fallbackId,
+    items: orderData.items,
+    totalAmount: orderData.totalAmount,
+    status: 'NEW' as const,
+    customerName: orderData.customerName || 'Client MAV',
+    customerPhone: orderData.customerPhone || '',
+    customerCity: orderData.customerCity || 'Abidjan',
+    whatsappMessage: orderData.whatsappMessage || '',
+    whatsappUrl: orderData.whatsappUrl || '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    notes: orderData.notes || '',
+  };
 
-    let finalOrder: Order = {
-      id: fallbackId,
-      items: orderData.items,
-      totalAmount: orderData.totalAmount,
-      status: 'NEW',
-      customerName: orderData.customerName || 'Client MAV',
-      customerPhone: orderData.customerPhone || '',
-      customerCity: orderData.customerCity || 'Abidjan',
-      whatsappMessage: orderData.whatsappMessage || '',
-      whatsappUrl: orderData.whatsappUrl || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      notes: orderData.notes || ''
-    };
+  try {
+    const savedOrder = await FirebaseService.createOrder(order);
 
-    try {
-      // Send to backend API which persists to server DB and triggers real FCM/Web Push to admins
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderData)
-      });
-
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData.order) {
-          finalOrder = resData.order;
-        }
-      }
-    } catch (err) {
-      console.warn('Direct backend order failed, saving locally:', err);
-    }
-
-    // Save in local state
     const currentOrders = StoreAPI.getOrders();
-    StoreAPI.setOrders([finalOrder, ...currentOrders.filter(o => o.id !== finalOrder.id)]);
 
-    return finalOrder;
-  },
+    StoreAPI.setOrders([
+      savedOrder,
+      ...currentOrders.filter((o) => o.id !== savedOrder.id),
+    ]);
 
-  updateOrderStatus: async (orderId: string, status: OrderStatus, notes?: string) => {
+    return savedOrder;
+  } catch (error) {
+    console.error('Erreur Firestore:', error);
+
+    throw new Error(
+      'Impossible d’enregistrer la commande. Veuillez réessayer.'
+    );
+  }
+},
+
+updateOrderStatus: async (
+  orderId: string,
+  status: OrderStatus,
+  notes?: string
+) => {
+  try {
+    await FirebaseService.updateOrder(orderId, {
+      status,
+      ...(notes !== undefined ? { notes } : {}),
+    });
+
     const list = StoreAPI.getOrders();
-    const index = list.findIndex(o => o.id === orderId);
+    const index = list.findIndex((o) => o.id === orderId);
+
     if (index >= 0) {
-      list[index].status = status;
-      if (notes !== undefined) list[index].notes = notes;
-      list[index].updatedAt = new Date().toISOString();
+      list[index] = {
+        ...list[index],
+        status,
+        ...(notes !== undefined ? { notes } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+
       StoreAPI.setOrders([...list]);
     }
+  } catch (error) {
+    console.error(
+      'Erreur mise à jour commande:',
+      error
+    );
 
-    try {
-      await fetch(`/api/orders/${orderId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, notes })
-      });
-    } catch (e) {
-      console.warn('Backend status patch error:', e);
-    }
-  },
+    throw error;
+  }
+},
 
   deleteOrder: async (orderId: string) => {
-    const list = StoreAPI.getOrders().filter(o => o.id !== orderId);
-    StoreAPI.setOrders(list);
+  try {
+    await FirebaseService.deleteOrder(orderId);
 
-    try {
-      await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
-    } catch (e) {
-      console.warn('Backend order delete error:', e);
-    }
-  },
+    const list = StoreAPI
+      .getOrders()
+      .filter((o) => o.id !== orderId);
+
+    StoreAPI.setOrders(list);
+  } catch (error) {
+    console.error(
+      'Erreur suppression commande:',
+      error
+    );
+
+    throw error;
+  }
+},
 
   // --- CART MANAGEMENT ---
   getCart: (): CartItem[] => loadData(STORAGE_KEYS.CART, []),
