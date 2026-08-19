@@ -14,11 +14,11 @@ export const INITIAL_SETTINGS: BrandSettings = {
   tagline: 'WEAR YOUR STORY.',
   subTagline: 'STREETWEAR ÉDITORIAL — ABIDJAN & MONDE',
   whatsappNumber: '2250504272827',
-  whatsappFormatted: '+225 07 89 58 41 71',
+  whatsappFormatted: '+225 07 15 38 22 64',
   instagram: 'https://instagram.com/marasseuravie',
-  tiktok: 'https://tiktok.com/@marasseuravie',
+  tiktok: 'https://www.tiktok.com/@mav.streetwear?_r=1&_t=ZS-991LZbLYjtY',
   facebook: 'https://facebook.com/marasseuravie',
-  email: 'contact@marasseuravie.com',
+  email: 'marasseuravie@gmail.com',
   location: 'Abidjan, Côte d\'Ivoire',
   currency: 'FCFA',
   announcement: 'DROP 01 DISPONIBLE — TRICOTS SIGNATURE EN ÉDITION LIMITÉE — LIVRAISON ABIDJAN & INTERNATIONAL',
@@ -41,7 +41,7 @@ export const INITIAL_PRODUCTS: Product[] = [
       'Détail signature sur la manche'
     ],
     price: 35000,
-    category: 'tricots',
+    category: 'tshirts',
     images: [tricot01Img, heroImg],
     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
     colors: [
@@ -57,61 +57,11 @@ export const INITIAL_PRODUCTS: Product[] = [
     createdAt: '2025-01-15T10:00:00Z',
     updatedAt: '2025-02-01T12:00:00Z'
   },
-  {
-    id: 'mav-tracksuit',
-    name: 'SURVÊTEMENT MAV ',
-    slug: 'survetement-mav',
-    subtitle: 'Ensemble Veste & Pantalon Gris Chiné',
-    description: 'Ensemble survêtement coupe relax en molleton lourd gris chiné premium. Confort optimal et présence streetwear contemporaine.',
-    details: [
-      'Molleton French Terry lourd 480 GSM',
-      'Poches discrètes et cordons de serrage techniques',
-      'Logo signature MARASSEURAVIE',
-      'Bord-côte renforcé'
-    ],
-    price: 50000,
-    category: 'survetements',
-    images: [survetement01Img],
-    sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
-    colors: [
-      { name: 'Gris Chiné', hex: '#A8A8A8' }
-    ],
-    stock: 10,
-    status: 'available',
-    badge: 'NEW',
-    featured: true,
-    isNewDrop: true,
-    composition: '100% Coton Molleton Dense',
-    care: 'Lavage en machine à 30°C à l\'envers.',
-    createdAt: '2025-02-01T10:00:00Z',
-    updatedAt: '2025-02-10T12:00:00Z'
-  },
-  
+
 ];
 
 export const INITIAL_COLLECTIONS: Collection[] = [
-  {
-    id: 'col-tricots',
-    name: 'TRICOTS',
-    slug: 'tricots',
-    description: 'L\'essence originelle de la maison. Pièces en maille lourde, coupes franches et élégance urbaine.',
-    image: tricot01Img,
-    productIds: ['mav-knit-01', 'mav-knit-02'],
-    status: 'active',
-    season: '2025 / DROP 01',
-    itemCount: 3
-  },
-  {
-    id: 'col-survetements',
-    name: 'SURVÊTEMENTS',
-    slug: 'survetements',
-    description: 'Ensembles confort et silhouettes techniques contemporaines.',
-    image: survetement01Img,
-    productIds: ['mav-tracksuit-01', 'mav-tracksuit-02'],
-    status: 'active',
-    season: '2025 / DROP 01',
-    itemCount: 4
-  },
+
   {
     id: 'col-tshirts',
     name: 'T-SHIRTS',
@@ -134,17 +84,6 @@ export const INITIAL_COLLECTIONS: Collection[] = [
     season: '2025 / PERMANENT',
     itemCount: 3
   },
-  {
-    id: 'col-accessoires',
-    name: 'ACCESSOIRES',
-    slug: 'accessoires',
-    description: 'Bonnets, pièces maîtresses et finitions pour parfaire la silhouette MARASSEURAVIE.',
-    image: 'https://images.unsplash.com/photo-1576871337632-b9aef4c17ab9?auto=format&fit=crop&q=80&w=1200',
-    productIds: ['mav-acc-01'],
-    status: 'active',
-    season: '2025 / CAPSULE',
-    itemCount: 1
-  }
 ];
 
 export const INITIAL_CAMPAIGN: Campaign = {

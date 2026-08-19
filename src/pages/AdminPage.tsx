@@ -115,6 +115,9 @@ const [productImages, setProductImages] =
   // Product editing state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [productSaveError, setProductSaveError] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   // Collection editing state
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
@@ -393,7 +396,27 @@ const handleSubscribePush = async () => {
     setIsSubscribingPush(false);
   }
 };
-
+// Ajoutez cet useEffect après les déclarations d'état
+// ⚠️ Ne dépend QUE de l'id du produit édité, pas de l'objet entier.
+// Avant, [editingProduct] se redéclenchait à CHAQUE frappe (nom, prix, etc.)
+// car chaque champ fait setEditingProduct({ ...editingProduct, xxx }) → nouvelle
+// référence d'objet → l'effect régénérait productImages avec des publicId
+// aléatoires (Math.random()) en boucle, désynchronisant l'upload en cours du
+// ProductImageUploader et faisant afficher/enregistrer la mauvaise image.
+useEffect(() => {
+  if (editingProduct) {
+    // Convertir les images du produit en CloudinaryImage[] avec des ids stables
+    const images = editingProduct.images.map((url, idx) => ({
+      secure_url: url,
+      url: url,
+      publicId: `existing_${editingProduct.id}_${idx}`
+    }));
+    setProductImages(images);
+  } else {
+    setProductImages([]);
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [editingProduct?.id]);
 // Fonction pour envoyer une notification de test
 const sendTestNotification = async () => {
   try {
@@ -417,7 +440,7 @@ const sendTestNotification = async () => {
 
   // Fallback: Notification API classique
   try {
-    const notification = new Notification('🔔 MARASSEURAVIE', {
+    const notification = new Notification('MARASSEURAVIE', {
       body: 'Notifications activées sur votre téléphone !',
       icon: '/assets/logo.png',
     });
@@ -450,38 +473,59 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 
   const handleCreateNewProduct = () => {
-    setEditingProduct({
-      id: `mav-custom-${Date.now()}`,
-      name: 'Nouveau Produit MARASSEURAVIE',
-      slug: `produit-${Date.now()}`,
-      subtitle: 'Édition 2025',
-      description: 'Description de la nouvelle pièce de luxe streetwear...',
-      price: 35000,
-      category: 'tricots',
-      images: [products[0]?.images[0] || ''],
-      sizes: ['S', 'M', 'L', 'XL'],
-      colors: [{ name: 'Noir Profond', hex: '#000000' }],
-      stock: 10,
-      status: 'available',
-      badge: 'NEW',
-      featured: true,
-      isNewDrop: true,
-      composition: '100% Coton Peigné 520 GSM',
-      care: 'Lavage délicat 30°C.',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-    setIsCreatingProduct(true);
+  const newProduct = {
+    id: `mav-custom-${Date.now()}`,
+    name: 'Nouveau Produit MARASSEURAVIE',
+    slug: `produit-${Date.now()}`,
+    subtitle: 'Édition 2025',
+    description: 'Description de la nouvelle pièce de luxe streetwear...',
+    price: 35000,
+    category: 'tricots' as ProductCategory,
+    images: [], // Commencer avec un tableau vide
+    sizes: ['S', 'M', 'L', 'XL'],
+    colors: [{ name: 'Noir Profond', hex: '#000000' }],
+    stock: 10,
+    status: 'available' as ProductStatus,
+    badge: 'NEW' as const,
+    featured: true,
+    isNewDrop: true,
+    composition: '100% Coton Peigné 520 GSM',
+    care: 'Lavage délicat 30°C.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  setEditingProduct(newProduct);
+  setProductImages([]); // Réinitialiser les images
+  setIsCreatingProduct(true);
+  setProductSaveError(null);
+};
+
+  const handleSaveProductForm = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!editingProduct) return;
+
+  // S'assurer que les images sont à jour
+  const productToSave = {
+    ...editingProduct,
+    images: productImages.length > 0
+      ? productImages.map(img => img.secure_url || img.url)
+      : editingProduct.images
   };
 
-  const handleSaveProductForm = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingProduct) {
-      saveProduct(editingProduct);
-      setEditingProduct(null);
-      setIsCreatingProduct(false);
-    }
-  };
+  setIsSavingProduct(true);
+  setProductSaveError(null);
+  try {
+    await saveProduct(productToSave);
+    setEditingProduct(null);
+    setIsCreatingProduct(false);
+    setProductImages([]);
+  } catch (err: any) {
+    console.error('Erreur sauvegarde produit:', err);
+    setProductSaveError(err?.message || 'Impossible d\'enregistrer le produit. Réessaie.');
+  } finally {
+    setIsSavingProduct(false);
+  }
+};
 
   const handleCreateNewCollection = () => {
     setEditingCollection({
@@ -1070,7 +1114,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                       RÉPARTITION DU CATALOGUE
                     </h3>
                     <div className="space-y-3 text-xs font-mono-brand">
-                      {['tricots', 'survetements', 'hoodies', 'tshirts', 'accessoires'].map(cat => {
+                      {[ 'hoodies', 'tshirts'].map(cat => {
                         const count = products.filter(p => p.category === cat).length;
                         const pct = Math.round((count / (products.length || 1)) * 100);
                         return (
@@ -1433,6 +1477,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                         onClick={() => {
                           setEditingProduct({ ...p });
                           setIsCreatingProduct(false);
+                          setProductSaveError(null);
                         }}
                         className="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-xs font-mono-brand text-white border border-neutral-800 rounded flex items-center gap-1.5"
                       >
@@ -1440,15 +1485,27 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                         <span>Modifier</span>
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Supprimer le produit ${p.name} ?`)) {
-                            deleteProduct(p.id);
+                        onClick={async () => {
+                          if (!confirm(`Supprimer le produit ${p.name} ?`)) return;
+                          setDeletingProductId(p.id);
+                          try {
+                            await deleteProduct(p.id);
+                          } catch (err) {
+                            console.error('Erreur suppression produit:', err);
+                            alert('Impossible de supprimer ce produit. Réessaie.');
+                          } finally {
+                            setDeletingProductId(null);
                           }
                         }}
-                        className="p-1.5 text-neutral-500 hover:text-red-400 hover:bg-neutral-900 rounded"
+                        disabled={deletingProductId === p.id}
+                        className="p-1.5 text-neutral-500 hover:text-red-400 hover:bg-neutral-900 rounded disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Supprimer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        {deletingProductId === p.id ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1726,11 +1783,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                     onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value as ProductCategory })}
                     className="w-full bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
                   >
-                    <option value="tricots">Tricots</option>
-                    <option value="survetements">Survêtements</option>
-                    <option value="hoodies">Hoodies</option>
                     <option value="tshirts">T-Shirts</option>
-                    <option value="accessoires">Accessoires</option>
+                    <option value="hoodies">Hoodies</option>
                   </select>
                 </div>
 
@@ -1745,14 +1799,94 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-mono-brand uppercase text-neutral-400"> Image</label>
-               <ProductImageUploader
-  images={productImages}
-  onChange={setProductImages}
-  maxImages={6}
-/>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-mono-brand uppercase text-neutral-400">Couleurs disponibles</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newColors = [...(editingProduct.colors || []), { name: '', hex: '#000000' }];
+                      setEditingProduct({ ...editingProduct, colors: newColors });
+                    }}
+                    className="text-[10px] font-mono-brand uppercase text-neutral-400 hover:text-white flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Ajouter une couleur</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {(editingProduct.colors || []).map((color, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={color.hex || '#000000'}
+                        onChange={(e) => {
+                          const newColors = [...editingProduct.colors];
+                          newColors[idx] = { ...newColors[idx], hex: e.target.value };
+                          setEditingProduct({ ...editingProduct, colors: newColors });
+                        }}
+                        className="w-9 h-9 shrink-0 bg-black border border-neutral-800 cursor-pointer p-0.5"
+                        title="Choisir la couleur"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Nom (ex: Noir Profond)"
+                        value={color.name}
+                        onChange={(e) => {
+                          const newColors = [...editingProduct.colors];
+                          newColors[idx] = { ...newColors[idx], name: e.target.value };
+                          setEditingProduct({ ...editingProduct, colors: newColors });
+                        }}
+                        className="flex-1 bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={color.hex}
+                        onChange={(e) => {
+                          const newColors = [...editingProduct.colors];
+                          newColors[idx] = { ...newColors[idx], hex: e.target.value };
+                          setEditingProduct({ ...editingProduct, colors: newColors });
+                        }}
+                        className="w-24 bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newColors = editingProduct.colors.filter((_, i) => i !== idx);
+                          setEditingProduct({ ...editingProduct, colors: newColors });
+                        }}
+                        className="p-2 text-neutral-500 hover:text-red-400 hover:bg-neutral-900 rounded shrink-0"
+                        title="Supprimer cette couleur"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {(!editingProduct.colors || editingProduct.colors.length === 0) && (
+                    <p className="text-[11px] text-neutral-500 font-mono-brand">
+                      Aucune couleur — ajoute-en au moins une pour que le sélecteur s'affiche sur la fiche produit.
+                    </p>
+                  )}
+                </div>
               </div>
+
+              <div className="space-y-1">
+  <label className="text-[10px] font-mono-brand uppercase text-neutral-400">Images</label>
+  <ProductImageUploader
+    images={productImages}
+    onChange={(newImages) => {
+      setProductImages(newImages);
+      // Met à jour les images du produit en cours d'édition
+      setEditingProduct(prev => prev ? {
+        ...prev,
+        images: newImages.map(img => img.secure_url || img.url)
+      } : null);
+    }}
+    maxImages={6}
+  />
+</div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-mono-brand uppercase text-neutral-400">Description</label>
@@ -1764,19 +1898,28 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                 />
               </div>
 
+              {productSaveError && (
+                <div className="p-3 bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-mono-brand">
+                  {productSaveError}
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800">
                 <button
                   type="button"
                   onClick={() => setEditingProduct(null)}
-                  className="px-4 py-2.5 bg-neutral-900 text-neutral-300 text-xs font-mono-brand uppercase rounded"
+                  disabled={isSavingProduct}
+                  className="px-4 py-2.5 bg-neutral-900 text-neutral-300 text-xs font-mono-brand uppercase rounded disabled:opacity-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-white text-black font-display  text-xs uppercase tracking-wider rounded hover:bg-neutral-200"
+                  disabled={isSavingProduct}
+                  className="px-6 py-2.5 bg-white text-black font-display  text-xs uppercase tracking-wider rounded hover:bg-neutral-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Enregistrer
+                  {isSavingProduct && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{isSavingProduct ? 'Enregistrement...' : 'Enregistrer'}</span>
                 </button>
               </div>
             </form>

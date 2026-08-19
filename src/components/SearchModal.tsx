@@ -84,7 +84,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
           <span className="text-[10px] font-mono-brand text-neutral-500 uppercase tracking-widest mr-1">
             CATÉGORIES:
           </span>
-          {['tricots', 'survetements', 'hoodies', 'tshirts', 'accessoires'].map(cat => (
+          {['tshirts', 'hoodies'].map(cat => (
             <button
               key={cat}
               onClick={() => {

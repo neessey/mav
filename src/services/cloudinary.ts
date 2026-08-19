@@ -1,9 +1,8 @@
 export interface CloudinaryImage {
+  [x: string]: string;
   url: string;
   publicId: string;
-  width?: number;
-  height?: number;
-  format?: string;
+
 }
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;

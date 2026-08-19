@@ -20,6 +20,7 @@ import {
   INITIAL_SETTINGS
 } from '../data/initialData';
 import { FirebaseService } from './firebaseConfig';
+import { set } from 'firebase/database';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'mav_products_v1',
@@ -124,20 +125,51 @@ export const StoreAPI = {
     return list.find(p => p.id === id || p.slug === id);
   },
 
-  saveProduct: (product: Product) => {
-    const list = StoreAPI.getProducts();
-    const index = list.findIndex(p => p.id === product.id);
-    if (index >= 0) {
-      list[index] = { ...product, updatedAt: new Date().toISOString() };
-    } else {
-      list.unshift({ ...product, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  // Charge les produits depuis Firestore et met à jour le cache local.
+  // Le localStorage reste utilisé comme cache instantané au chargement
+  // (comme pour les commandes) mais Firestore est la source de vérité.
+  fetchBackendProducts: async (): Promise<Product[]> => {
+    try {
+      const products = await FirebaseService.getProducts();
+      StoreAPI.setProducts(products);
+      return products;
+    } catch (error) {
+      console.error('Erreur récupération produits Firestore:', error);
+      return StoreAPI.getProducts();
     }
-    StoreAPI.setProducts([...list]);
   },
 
-  deleteProduct: (id: string) => {
-    const list = StoreAPI.getProducts().filter(p => p.id !== id);
-    StoreAPI.setProducts(list);
+  saveProduct: async (product: Product) => {
+    try {
+      const savedProduct = await FirebaseService.saveProduct(product);
+
+      const list = StoreAPI.getProducts();
+      const index = list.findIndex(p => p.id === savedProduct.id);
+      let updatedProducts;
+      if (index >= 0) {
+        updatedProducts = [...list];
+        updatedProducts[index] = savedProduct as Product;
+      } else {
+        updatedProducts = [...list, savedProduct as Product];
+      }
+      StoreAPI.setProducts(updatedProducts);
+
+      return savedProduct;
+    } catch (error) {
+      console.error('Erreur Firestore (produit):', error);
+      throw new Error('Impossible d\'enregistrer le produit. Veuillez réessayer.');
+    }
+  },
+
+  deleteProduct: async (id: string) => {
+    try {
+      await FirebaseService.deleteProduct(id);
+      const list = StoreAPI.getProducts().filter(p => p.id !== id);
+      StoreAPI.setProducts(list);
+    } catch (error) {
+      console.error('Erreur suppression produit:', error);
+      throw error;
+    }
   },
 
   getCollections: (): Collection[] => loadData(STORAGE_KEYS.COLLECTIONS, INITIAL_COLLECTIONS),
@@ -438,6 +470,7 @@ export function useStore() {
     listeners.add(handleUpdate);
     // Initial fetch from backend if available
     StoreAPI.fetchBackendOrders();
+    StoreAPI.fetchBackendProducts();
     return () => {
       listeners.delete(handleUpdate);
     };
@@ -454,6 +487,7 @@ export function useStore() {
     adminAuth: StoreAPI.getAdminAuth(),
     saveProduct: StoreAPI.saveProduct,
     deleteProduct: StoreAPI.deleteProduct,
+    fetchBackendProducts: StoreAPI.fetchBackendProducts,
     saveCollection: StoreAPI.saveCollection,
     deleteCollection: StoreAPI.deleteCollection,
     setSettings: StoreAPI.setSettings,

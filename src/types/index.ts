@@ -1,4 +1,4 @@
-export type ProductCategory = 'tricots' | 'survetements' | 'tshirts' | 'hoodies' | 'accessoires';
+export type ProductCategory =  'tshirts' | 'hoodies' ;
 
 export type ProductStatus = 'available' | 'sold_out' | 'preorder' | 'coming_soon' | 'archived';
 

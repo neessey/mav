@@ -5,6 +5,7 @@ import {
   addDoc,
   getDocs,
   doc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -145,5 +146,52 @@ export const FirebaseService = {
     const orderRef = doc(db, 'orders', orderId);
 
     await deleteDoc(orderRef);
+  },
+
+  // =========================
+  // PRODUCTS
+  // =========================
+  // On utilise setDoc (pas addDoc) pour garder les IDs custom
+  // (ex: mav-custom-172..., mav-knit-01) au lieu d'IDs générés par Firestore.
+
+  saveProduct: async (product: any) => {
+    const productRef = doc(db, 'products', product.id);
+
+    const now = new Date().toISOString();
+
+    const productToSave = {
+      ...product,
+      createdAt: product.createdAt || now,
+      updatedAt: now,
+    };
+
+    await setDoc(productRef, productToSave, { merge: true });
+
+    return {
+      ...productToSave,
+      id: product.id,
+    };
+  },
+
+  getProducts: async () => {
+    const productsRef = collection(db, 'products');
+
+    const q = query(
+      productsRef,
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map((item: any) => ({
+      id: item.id,
+      ...item.data(),
+    }));
+  },
+
+  deleteProduct: async (productId: string) => {
+    const productRef = doc(db, 'products', productId);
+
+    await deleteDoc(productRef);
   },
 };

@@ -26,11 +26,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({
 
   const categories = [
     { id: 'all', label: 'TOUS LES PRODUITS' },
-    { id: 'tricots', label: 'TRICOTS' },
-    { id: 'survetements', label: 'SURVÊTEMENTS' },
     { id: 'tshirts', label: 'T-SHIRTS' },
     { id: 'hoodies', label: 'HOODIES' },
-    { id: 'accessoires', label: 'ACCESSOIRES' },
   ];
 
   const allSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -169,24 +166,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                   />
                   <span>Tous ({categoryCounts['all'] || products.length})</span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategory === 'tricots'}
-                    onChange={() => setSelectedCategory('tricots')}
-                    className="accent-white cursor-pointer"
-                  />
-                  <span>Tricots ({categoryCounts['tricots'] || 0})</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategory === 'survetements'}
-                    onChange={() => setSelectedCategory('survetements')}
-                    className="accent-white cursor-pointer"
-                  />
-                  <span>Survêtements ({categoryCounts['survetements'] || 0})</span>
-                </label>
+               
                 <label className="flex items-center gap-2.5 cursor-pointer hover:text-white">
                   <input
                     type="checkbox"
@@ -205,15 +185,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
                   />
                   <span>Hoodies ({categoryCounts['hoodies'] || 0})</span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={selectedCategory === 'accessoires'}
-                    onChange={() => setSelectedCategory('accessoires')}
-                    className="accent-white cursor-pointer"
-                  />
-                  <span>Accessoires ({categoryCounts['accessoires'] || 0})</span>
-                </label>
+               
               </div>
             </div>
 
