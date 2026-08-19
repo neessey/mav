@@ -139,7 +139,7 @@ useEffect(() => {
       const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan', order.id);
       const finalUrl = appendPaymentNoteToWhatsAppUrl(url, method);
 
-      if (method === 'wave') {
+     if (method === 'wave') {
   sessionStorage.setItem(
     'pendingWaveOrder',
     JSON.stringify({
@@ -151,12 +151,11 @@ useEffect(() => {
   window.location.assign(WAVE_MERCHANT_LINK);
 }
     } catch (err) {
-  console.error('Order creation error:', err);
-
-  alert(
-    'Impossible d’enregistrer la commande. Vérifie ta connexion puis réessaie.'
-  );
-} finally {
+      console.error('Order creation error:', err);
+      // Fallback : ouvrir WhatsApp directement même si la commande n'a pas pu être créée
+      const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan');
+      window.open(appendPaymentNoteToWhatsAppUrl(url, method), '_blank', 'noopener,noreferrer');
+    } finally {
       setIsOrdering(false);
       setProcessingMethod(null);
       setShowPaymentModal(false);

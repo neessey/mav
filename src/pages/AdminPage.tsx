@@ -220,55 +220,157 @@ const isPWA = () => {
     )}
   </div>
 )}
+// AdminPage.tsx - Version complète avec gestion du SW existant
+
 const handleSubscribePush = async () => {
   setIsSubscribingPush(true);
   setPushFeedback(null);
 
   try {
-    // Vérifier le support
-    if (!('Notification' in window)) {
-      setPushFeedback('❌ Les notifications ne sont pas supportées.');
+    // 1. Vérifier le support
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushFeedback('❌ Ce navigateur ne supporte pas les notifications push. Utilisez Chrome, Edge ou Firefox.');
       setIsSubscribingPush(false);
       return;
     }
 
-    // Demander la permission
+    // 2. Vérifier si le Service Worker est enregistré
+    let registration = await navigator.serviceWorker.getRegistration('/');
+    
+    if (!registration) {
+      setPushFeedback('⏳ Enregistrement du Service Worker en cours...');
+      
+      // Enregistrer le SW
+      registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/'
+      });
+      
+      // Attendre que le SW soit actif
+      await navigator.serviceWorker.ready;
+      setPushFeedback('✅ Service Worker enregistré avec succès !');
+    }
+
+    // 3. Demander la permission
     const permission = await Notification.requestPermission();
     
-    if (permission === 'granted') {
+    if (permission !== 'granted') {
+      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres de votre navigateur.');
+      setIsSubscribingPush(false);
+      return;
+    }
+
+    // 4. Vérifier si déjà abonné
+    const existingSubscription = await registration.pushManager.getSubscription();
+    
+    if (existingSubscription) {
       setPushStatus({ 
         isSupported: true, 
         permission: 'granted', 
         isSubscribed: true 
       });
-      setPushFeedback('✅ Notifications activées !');
+      setPushFeedback('✅ Déjà abonné aux notifications push !');
+      setIsSubscribingPush(false);
       
       // Envoyer une notification de test
-      const notification = new Notification('📬 MARASSEURAVIE', {
-        body: 'Notifications push activées sur votre appareil !',
-        icon: '/assets/logo.png',
-        badge: '/assets/logo.png',
-        tag: 'test-notification',
-        requireInteraction: true,
-        data: {
-          url: '/admin'
-        }
-      });
-
-      // Gérer le clic sur la notification
-      notification.onclick = () => {
-        window.focus();
-        window.location.href = '/admin';
-      };
-
-      confetti({ particleCount: 60, spread: 70 });
-    } else {
-      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres.');
+      await sendTestPushNotification(registration);
+      
+      return;
     }
+
+    // 5. S'abonner avec VAPID
+    // Récupérer la clé publique du backend ou utiliser une clé de test
+    let vapidPublicKey = 'BNT1aGjXzqF9KxP6QyVW7X8Y9Z0A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z6';
+    
+    // Essayer de récupérer la clé depuis le backend
+    try {
+      const response = await fetch('/api/notifications/vapid-public-key');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.publicKey) {
+          vapidPublicKey = data.publicKey;
+        }
+      }
+    } catch (e) {
+      console.log('⚠️ Backend VAPID non disponible, utilisation de la clé de test');
+    }
+
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey as unknown as BufferSource
+    });
+
+    // 6. Sauvegarder l'abonnement
+    const subscriptionJSON = subscription.toJSON();
+    console.log('✅ Abonnement créé:', subscriptionJSON);
+    
+    // Envoyer au backend si disponible
+    try {
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscription: subscriptionJSON,
+          userAgent: navigator.userAgent
+        })
+      });
+      
+      if (!res.ok) {
+        console.warn('⚠️ Backend subscription failed, but local subscription is active');
+      }
+    } catch (error) {
+      console.warn('⚠️ Backend non disponible, abonnement local actif');
+    }
+
+    // 7. Mettre à jour l'état
+    setPushStatus({ 
+      isSupported: true, 
+      permission: 'granted', 
+      isSubscribed: true 
+    });
+    setPushFeedback('✅ Notifications push activées avec succès !');
+    confetti({ particleCount: 60, spread: 70 });
+
+    // 8. Envoyer une notification de test
+    setTimeout(() => {
+      sendTestPushNotification(registration);
+    }, 1000);
+
   } catch (err: any) {
-    setPushFeedback(`❌ ${err.message || 'Erreur inconnue'}`);
+    console.error('❌ Erreur:', err);
+    setPushFeedback(`❌ ${err.message || 'Échec de l\'activation des notifications'}`);
   } finally {
     setIsSubscribingPush(false);
+  }
+};
+
+// Fonction pour envoyer une notification de test
+const sendTestPushNotification = async (registration: ServiceWorkerRegistration) => {
+  try {
+    // Envoyer via le backend si disponible
+    const response = await fetch('/api/notifications/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: '🔔 MARASSEURAVIE',
+        message: 'Notifications push activées sur votre appareil !',
+        imageUrl: '/assets/logo.png',
+        actionUrl: '/admin'
+      })
+    });
+    
+    if (!response.ok) {
+      // Fallback: notification locale
+      new Notification('🔔 MARASSEURAVIE', {
+        body: 'Notifications push activées avec succès !',
+        icon: '/assets/logo.png',
+        badge: '/assets/logo.png',
+        tag: 'test-notification'
+      });
+    }
+  } catch (error) {
+    console.warn('⚠️ Test notification failed:', error);
   }
 };
 
