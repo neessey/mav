@@ -1,0 +1,6 @@
+{
+  "name": "MARASSEURAVIE",
+  "description": "Site officiel et boutique streetwear premium MARASSEURAVIE — Tricots haut de gamme, collections urbaines et lookbook éditorial depuis 2025.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
