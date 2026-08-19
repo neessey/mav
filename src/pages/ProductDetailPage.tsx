@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageView } from '../types';
 import { useStore } from '../services/store';
-import { ArrowLeft, MessageCircle, ShoppingBag, Check, ShieldCheck, Truck, Sparkles, HelpCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, ShoppingBag, Check, ShieldCheck, Truck, Sparkles, HelpCircle, Banknote, Smartphone, X, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ProductCard } from '../components/ProductCard';
+
+// TODO: remplace par ton vrai lien marchand Wave Business
+const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_waw-9EveeQZb/c/ci';
 
 interface ProductDetailPageProps {
   productId: string;
@@ -11,6 +14,8 @@ interface ProductDetailPageProps {
   onSelectProduct: (productId: string) => void;
   onOpenCart: () => void;
 }
+
+type PaymentMethod = 'cod' | 'wave';
 
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   productId,
@@ -29,7 +34,39 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [addedToast, setAddedToast] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [processingMethod, setProcessingMethod] = useState<PaymentMethod | null>(null);
+  const [showWhatsAppContinue, setShowWhatsAppContinue] = useState(false);
+const [pendingWhatsAppUrl, setPendingWhatsAppUrl] = useState<string | null>(null);
 
+  // Détecte le retour de l'utilisateur depuis l'app Wave (visibilitychange)
+  // et relance automatiquement l'ouverture de WhatsApp avec la commande.
+useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState !== 'visible') return;
+
+    const pendingRaw = sessionStorage.getItem('pendingWaveOrder');
+    if (!pendingRaw) return;
+
+    try {
+      const { whatsappUrl } = JSON.parse(pendingRaw);
+
+      if (whatsappUrl) {
+        setPendingWhatsAppUrl(whatsappUrl);
+        setShowWhatsAppContinue(true);
+      }
+    } catch (error) {
+      console.error('Erreur récupération commande Wave:', error);
+      sessionStorage.removeItem('pendingWaveOrder');
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+}, []);
   if (!product) {
     return (
       <div className="py-32 text-center text-white">
@@ -47,7 +84,22 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const isAvailable = product.status === 'available' || product.status === 'preorder';
   const isComingSoon = product.status === 'coming_soon';
 
-  const handleWhatsAppOrder = async () => {
+  // Ajoute une ligne "Paiement : ..." au texte du message WhatsApp généré par formatWhatsAppOrderUrl
+  const appendPaymentNoteToWhatsAppUrl = (url: string, method: PaymentMethod) => {
+    try {
+      const u = new URL(url);
+      const currentText = u.searchParams.get('text') || '';
+      const paymentLabel =
+        method === 'wave' ? '💳 Paiement : Wave (effectué)' : '💵 Paiement : à la livraison';
+      u.searchParams.set('text', `${currentText}\n\n${paymentLabel}`);
+      return u.toString();
+    } catch {
+      return url;
+    }
+  };
+
+  const processOrder = async (method: PaymentMethod) => {
+    setProcessingMethod(method);
     setIsOrdering(true);
     confetti({
       particleCount: 60,
@@ -58,7 +110,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
     try {
       const orderTotal = product.price * quantity;
-      // 1. First create the order in Firestore/backend (triggers instant Admin Push Notification)
+      // 1. Créer la commande en base (déclenche la push notif admin)
       const order = await createOrder({
         items: [
           {
@@ -74,21 +126,36 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         ],
         totalAmount: orderTotal,
         customerCity: 'Abidjan',
-        notes: `Commande directe depuis fiche produit ${product.name}`
+        notes: `Commande directe depuis fiche produit ${product.name} — Paiement : ${
+          method === 'wave' ? 'Wave' : 'À la livraison'
+        }`,
+        customerName: undefined,
+        customerPhone: undefined,
+        whatsappMessage: undefined,
+        whatsappUrl: undefined
       });
 
-      // 2. Format customized WhatsApp message containing the unique Order ID
+      // 2. Générer l'URL WhatsApp avec l'ID de commande
       const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan', order.id);
-      
-      // 3. Open WhatsApp
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const finalUrl = appendPaymentNoteToWhatsAppUrl(url, method);
+
+      if (method === 'wave') {
+        // On garde la commande + l'URL WhatsApp en attente le temps que le client paie sur Wave
+        sessionStorage.setItem('pendingWaveOrder', JSON.stringify({ orderId: order.id, whatsappUrl: finalUrl }));
+        window.open(WAVE_MERCHANT_LINK, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(finalUrl, '_blank', 'noopener,noreferrer');
+      }
     } catch (err) {
-      console.error('Order creation error:', err);
-      // Fallback open WhatsApp directly
-      const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan');
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } finally {
+  console.error('Order creation error:', err);
+
+  alert(
+    'Impossible d’enregistrer la commande. Vérifie ta connexion puis réessaie.'
+  );
+} finally {
       setIsOrdering(false);
+      setProcessingMethod(null);
+      setShowPaymentModal(false);
     }
   };
 
@@ -316,18 +383,19 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               </div>
             )}
 
-            {/* Primary Actions: WhatsApp Order & Bag */}
+            {/* Primary Actions: Order & Bag */}
             <div className="flex flex-col gap-3 pt-4 border-t border-neutral-900">
               {isAvailable ? (
                 <>
-                  {/* WhatsApp Direct Order Button (Highest Priority) */}
+                  {/* Open payment method modal (replaces direct WhatsApp trigger) */}
                   <button
                     id="product-whatsapp-order-btn"
-                    onClick={handleWhatsAppOrder}
-                    className="w-full bg-white text-black font-display  text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl"
+                    onClick={() => setShowPaymentModal(true)}
+                    disabled={isOrdering}
+                    className="w-full bg-white text-black font-display  text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <MessageCircle className="w-4 h-4 fill-current" />
-                    <span>COMMANDER SUR WHATSAPP</span>
+                    <span>COMMANDER</span>
                   </button>
 
                   {/* Add to Bag Secondary */}
@@ -434,6 +502,140 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         )}
 
       </div>
+
+      {showWhatsAppContinue && pendingWhatsAppUrl && (
+  <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-6 shadow-2xl text-white">
+
+      <div className="flex items-center justify-center mb-5">
+        <div className="w-14 h-14 rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center">
+          <Check className="w-7 h-7 text-emerald-400" />
+        </div>
+      </div>
+
+      <div className="text-center">
+        <h3 className="font-display text-xl uppercase tracking-wider mb-3">
+          Paiement Wave terminé ?
+        </h3>
+
+        <p className="text-xs text-neutral-400 font-sans leading-relaxed mb-6">
+          Si tu as terminé ton paiement sur Wave, clique sur le bouton
+          ci-dessous pour finaliser ta commande avec WhatsApp.
+        </p>
+
+        <button
+          onClick={() => {
+            if (!pendingWhatsAppUrl) return;
+
+            sessionStorage.removeItem('pendingWaveOrder');
+
+            window.open(
+              pendingWhatsAppUrl,
+              '_blank',
+              'noopener,noreferrer'
+            );
+
+            setPendingWhatsAppUrl(null);
+            setShowWhatsAppContinue(false);
+          }}
+          className="w-full bg-white text-black py-4 px-6 font-display text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all"
+        >
+          <MessageCircle className="w-4 h-4 fill-current" />
+          J'AI PAYÉ → CONTINUER SUR WHATSAPP
+        </button>
+
+        <button
+          onClick={() => {
+            setPendingWhatsAppUrl(null);
+            setShowWhatsAppContinue(false);
+            sessionStorage.removeItem('pendingWaveOrder');
+          }}
+          className="w-full mt-3 border border-neutral-800 text-neutral-400 py-3 text-xs font-mono-brand uppercase tracking-widest hover:text-white hover:border-neutral-600 transition-all"
+        >
+          FERMER
+        </button>
+
+        <p className="text-[10px] text-neutral-600 font-mono-brand mt-4">
+          Ta commande a déjà été enregistrée.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
+
+      {/* Payment Method Modal */}
+      {showPaymentModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => !isOrdering && setShowPaymentModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-6 shadow-2xl text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-4 mb-5">
+              <span className="font-display text-base uppercase tracking-wider">
+                MODE DE PAIEMENT
+              </span>
+              <button
+                onClick={() => !isOrdering && setShowPaymentModal(false)}
+                className="text-neutral-400 hover:text-white disabled:opacity-40"
+                disabled={isOrdering}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-400 font-sans leading-relaxed mb-5">
+              Choisis comment tu veux payer ta commande de <span className="text-white">{product.name}</span> ({quantity} x {product.price.toLocaleString('fr-FR')} {settings.currency}).
+            </p>
+
+            <div className="flex flex-col gap-3">
+              {/* Cash on delivery */}
+              <button
+                onClick={() => processOrder('cod')}
+                disabled={isOrdering}
+                className="w-full flex items-center gap-4 border border-neutral-800 hover:border-white bg-black px-4 py-4 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800">
+                  {processingMethod === 'cod' ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Banknote className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold uppercase tracking-widest">Paiement à la livraison</span>
+                  <span className="text-[11px] text-neutral-500 font-mono-brand">Tu payes en espèces à la réception</span>
+                </div>
+              </button>
+
+              {/* Wave */}
+              <button
+                onClick={() => processOrder('wave')}
+                disabled={isOrdering}
+                className="w-full flex items-center gap-4 border border-neutral-800 hover:border-white bg-black px-4 py-4 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800">
+                  {processingMethod === 'wave' ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Smartphone className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold uppercase tracking-widest">Payer avec Wave</span>
+                  <span className="text-[11px] text-neutral-500 font-mono-brand">Redirection vers Wave, puis retour ici</span>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-neutral-500 font-mono-brand mt-5 text-center">
+              Une fois le paiement confirmé, tu seras redirigé vers WhatsApp pour finaliser.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Size Guide Modal */}
       {showSizeGuide && (

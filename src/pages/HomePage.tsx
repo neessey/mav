@@ -59,9 +59,9 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
 
         {/* Top editorial line */}
-        <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
-          <span className="font-mono-brand right-5 text-[10px] uppercase tracking-[0.3em] text-white/60">
-            MARASSEURAVIE®
+        <div className="absolute right-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
+          <span className="font-mono-brand  text-[10px] uppercase tracking-[0.3em] text-white/60">
+            MARASSEURAVIE
           </span>
 
         </div>

@@ -200,15 +200,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         {/* Bottom Legal & Meta */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-neutral-500 font-mono-brand">
           <div className="flex items-center gap-4">
-            <span>© 2025 MARASSEURAVIE. TOUS DROITS RÉSERVÉS.</span>
-            <span className="hidden sm:inline">•</span>
+             <span className="hidden sm:inline">•</span>
               <button
               id="mobile-nav-admin"
               onClick={() => handleNavClick('admin')}
               className="flex items-center justify-between text-left group py-2 border-b border-neutral-900"
             >
+            <span>© 2025 MARASSEURAVIE. TOUS DROITS RÉSERVÉS.</span>
+           </button>
             <span className="hidden sm:inline">DEPUIS 2025</span>
-            </button>
+            
           </div>
 
           <div className="flex items-center gap-6">

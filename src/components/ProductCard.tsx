@@ -43,7 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           alt={product.name}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
-          loading="lazy"
+          loading="eager"
         />
 
         {/* Top Badges */}
@@ -58,18 +58,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
 
-        {/* Bottom Bag Icon trigger */}
-        {isAvailable && (
-          <button
-            id={`btn-bag-${product.id}`}
-            onClick={handleQuickAdd}
-            className="absolute bottom-3 right-3 z-20 p-2 bg-black/70 hover:bg-white hover:text-black text-white border border-white/20 transition-all opacity-80 group-hover:opacity-100"
-            title="Ajouter à la sélection"
-            aria-label="Ajouter à la sélection"
-          >
-            <ShoppingBag className="w-3.5 h-3.5" />
-          </button>
-        )}
+       
       </div>
 
       {/* Meta info below image */}

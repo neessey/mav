@@ -59,7 +59,10 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
         totalAmount,
         customerName: customerName || 'Client MAV',
         customerCity: deliveryCity,
-        notes: `Commande Panier (${cart.length} pièces)`
+        notes: `Commande Panier (${cart.length} pièces)`,
+        customerPhone: undefined,
+        whatsappMessage: undefined,
+        whatsappUrl: undefined
       });
 
       // 2. Format customized WhatsApp URL with order reference
