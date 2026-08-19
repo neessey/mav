@@ -152,6 +152,29 @@ const [productImages, setProductImages] =
     checkPush();
   }, []);
 
+  // Dans AdminPage.tsx, ajoutez un useEffect pour vérifier le SW
+
+useEffect(() => {
+  // Vérifier le support et enregistrer le SW
+  const checkAndRegisterSW = async () => {
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        console.log('✅ Service Worker prêt:', registration);
+        setPushStatus(prev => ({ ...prev, isSupported: true }));
+      } catch (error) {
+        console.warn('⚠️ Service Worker non disponible:', error);
+        setPushStatus(prev => ({ ...prev, isSupported: false }));
+      }
+    } else {
+      console.warn('⚠️ Service Worker non supporté par ce navigateur');
+      setPushStatus(prev => ({ ...prev, isSupported: false }));
+    }
+  };
+
+  checkAndRegisterSW();
+}, []);
+
   useEffect(() => {
     if (initialOrderId) {
       const found = orders.find(o => o.id === initialOrderId);
@@ -178,25 +201,88 @@ const [productImages, setProductImages] =
     onNavigate('home');
   };
 
-  const handleSubscribePush = async () => {
-    setIsSubscribingPush(true);
-    setPushFeedback(null);
-    try {
-      const res = await PushNotificationService.subscribeAdminDevice();
-      const status = await PushNotificationService.getSubscriptionStatus();
-      setPushStatus(status);
-      if (res.success) {
-        setPushFeedback('✅ Notifications push activées avec succès sur cet appareil !');
-        confetti({ particleCount: 60, spread: 70 });
-      } else {
-        setPushFeedback(`⚠️ ${res.message || 'Erreur lors de l\'activation'}`);
-      }
-    } catch (err: any) {
-      setPushFeedback(`❌ ${err.message || 'Échec d\'activation'}`);
-    } finally {
+  // Dans AdminPage.tsx, ajoutez une vérification de l'environnement
+
+// Dans le composant, avant le handleSubscribePush
+const isPWA = () => {
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         (navigator as any).standalone === true;
+};
+
+// Dans le render des notifications, affichez l'état
+{!pushStatus.isSupported && (
+  <div className="p-4 bg-amber-950/30 border border-amber-800/40 rounded-sm text-amber-400 text-xs font-mono-brand">
+    <span className="font-bold">⚠️</span> Les notifications push ne sont pas supportées sur ce navigateur.
+    {!isPWA() && (
+      <span className="block mt-1 text-neutral-400">
+        💡 Pour recevoir les notifications, installez l'application sur votre appareil.
+      </span>
+    )}
+  </div>
+)}
+const handleSubscribePush = async () => {
+  setIsSubscribingPush(true);
+  setPushFeedback(null);
+
+  try {
+    // Vérifier le support
+    if (!('Notification' in window)) {
+      setPushFeedback('❌ Les notifications ne sont pas supportées.');
       setIsSubscribingPush(false);
+      return;
     }
-  };
+
+    // Demander la permission
+    const permission = await Notification.requestPermission();
+    
+    if (permission === 'granted') {
+      setPushStatus({ 
+        isSupported: true, 
+        permission: 'granted', 
+        isSubscribed: true 
+      });
+      setPushFeedback('✅ Notifications activées !');
+      
+      // Envoyer une notification de test
+      const notification = new Notification('📬 MARASSEURAVIE', {
+        body: 'Notifications push activées sur votre appareil !',
+        icon: '/assets/logo.png',
+        badge: '/assets/logo.png',
+        tag: 'test-notification',
+        requireInteraction: true,
+        data: {
+          url: '/admin'
+        }
+      });
+
+      // Gérer le clic sur la notification
+      notification.onclick = () => {
+        window.focus();
+        window.location.href = '/admin';
+      };
+
+      confetti({ particleCount: 60, spread: 70 });
+    } else {
+      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres.');
+    }
+  } catch (err: any) {
+    setPushFeedback(`❌ ${err.message || 'Erreur inconnue'}`);
+  } finally {
+    setIsSubscribingPush(false);
+  }
+};
+
+// Helper pour convertir la clé VAPID
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 
   const handleCreateNewProduct = () => {

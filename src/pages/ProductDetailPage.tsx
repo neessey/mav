@@ -140,12 +140,16 @@ useEffect(() => {
       const finalUrl = appendPaymentNoteToWhatsAppUrl(url, method);
 
       if (method === 'wave') {
-        // On garde la commande + l'URL WhatsApp en attente le temps que le client paie sur Wave
-        sessionStorage.setItem('pendingWaveOrder', JSON.stringify({ orderId: order.id, whatsappUrl: finalUrl }));
-        window.open(WAVE_MERCHANT_LINK, '_blank', 'noopener,noreferrer');
-      } else {
-        window.open(finalUrl, '_blank', 'noopener,noreferrer');
-      }
+  sessionStorage.setItem(
+    'pendingWaveOrder',
+    JSON.stringify({
+      orderId: order.id,
+      whatsappUrl: finalUrl,
+    })
+  );
+
+  window.location.assign(WAVE_MERCHANT_LINK);
+}
     } catch (err) {
   console.error('Order creation error:', err);
 
