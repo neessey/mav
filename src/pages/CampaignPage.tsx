@@ -126,7 +126,6 @@ export const CampaignPage: React.FC<CampaignPageProps> = ({
         <header className="mb-16 border-b border-white/10 pb-10 sm:mb-24 sm:pb-14">
 
           <div className="mb-7 flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-white" />
 
             <span className="font-mono-brand text-[9px] uppercase tracking-[0.35em] text-neutral-500 sm:text-[10px] sm:tracking-[0.45em]">
               LOOKBOOK OFFICIEL • SAISON 01
@@ -166,7 +165,6 @@ export const CampaignPage: React.FC<CampaignPageProps> = ({
           <div className="flex min-h-[50vh] items-center justify-center border border-white/10">
             <div className="text-center">
 
-              <Sparkles className="mx-auto mb-5 h-6 w-6 text-neutral-700" />
 
               <p className="font-mono-brand text-[10px] uppercase tracking-[0.25em] text-neutral-500">
                 LOOKBOOK EN PRÉPARATION

@@ -231,6 +231,7 @@ export const StoreAPI = {
 
     return StoreAPI.getOrders();
   }
+  
 },
 createOrder: async (orderData: { items: any; totalAmount: any; customerName: any; customerPhone: any; customerCity: any; whatsappMessage: any; whatsappUrl: any; notes: any; }) => {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -254,6 +255,26 @@ createOrder: async (orderData: { items: any; totalAmount: any; customerName: any
   try {
     const savedOrder = await FirebaseService.createOrder(order);
 
+    // The order is stored in Firestore first. Then the server sends a real
+    // Web Push notification to every admin device that enabled notifications.
+    // A push-server failure must never make a successful customer order fail.
+    try {
+      const response = await fetch('/api/notifications/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: savedOrder }),
+      });
+
+      if (!response.ok) {
+        console.warn('⚠️ Commande enregistrée, mais notification push non envoyée:', response.status);
+      } else {
+        const pushResult = await response.json();
+        console.log('📲 Notification nouvelle commande:', pushResult);
+      }
+    } catch (pushError) {
+      console.warn('⚠️ Commande enregistrée, serveur push indisponible:', pushError);
+    }
+
     const currentOrders = StoreAPI.getOrders();
 
     StoreAPI.setOrders([
@@ -269,6 +290,7 @@ createOrder: async (orderData: { items: any; totalAmount: any; customerName: any
       'Impossible d’enregistrer la commande. Veuillez réessayer.'
     );
   }
+  
 },
 
 updateOrderStatus: async (
@@ -369,7 +391,7 @@ updateOrderStatus: async (
   },
 
   getAdminAuth: () => loadData(STORAGE_KEYS.ADMIN_AUTH, { isAuthenticated: false, email: '' }),
-  setAdminAuth: (auth: { isAuthenticated: boolean; email: string }) => saveData(STORAGE_KEYS.ADMIN_AUTH, auth),
+  setAdminAuth: (auth: { isAuthenticated: boolean; email: string; uid?: string }) => saveData(STORAGE_KEYS.ADMIN_AUTH, auth),
 
   resetDefaults: () => {
     localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
@@ -458,7 +480,104 @@ Merci de me confirmer la prise en charge et le paiement !`;
     const cleanNumber = settings.whatsappNumber.replace(/[^0-9]/g, '');
     const message = `Bonjour MARASSEURAVIE,\n\nJe vous contacte concernant : [${inquiryType}].\nJ'aimerais avoir plus de renseignements sur vos collections.`;
     return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
-  }
+  },
+
+
+  signIn: async (email: string, password: string) => {
+    try {
+      const user = await FirebaseService.signIn(email, password);
+      // Mettre à jour l'état admin
+      StoreAPI.setAdminAuth({ 
+        isAuthenticated: true, 
+        email: user.email || '',
+        uid: user.uid,
+      });
+      return user;
+    } catch (error) {
+      console.error('Erreur connexion:', error);
+      throw error;
+    }
+  },
+
+  signUpAdmin: async (email: string, password: string) => {
+    try {
+      const user = await FirebaseService.signUpAdmin(email, password);
+      StoreAPI.setAdminAuth({ 
+        isAuthenticated: true, 
+        email: user.email || '',
+        uid: user.uid,
+      });
+      return user;
+    } catch (error) {
+      console.error('Erreur création admin:', error);
+      throw error;
+    }
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    try {
+      await FirebaseService.changePassword(currentPassword, newPassword);
+      return { success: true, message: 'Mot de passe changé avec succès.' };
+    } catch (error: any) {
+      throw new Error(error.message || 'Erreur lors du changement de mot de passe.');
+    }
+  },
+
+  resetPassword: async (email: string) => {
+    try {
+      await FirebaseService.resetPassword(email);
+      return { success: true, message: 'Email de réinitialisation envoyé.' };
+    } catch (error: any) {
+      throw new Error(error.message || 'Erreur d\'envoi de l\'email.');
+    }
+  },
+
+  signOut: async () => {
+    try {
+      await FirebaseService.signOut();
+      StoreAPI.setAdminAuth({ isAuthenticated: false, email: '', uid: '' });
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+      throw error;
+    }
+  },
+
+  getCurrentUser: () => {
+    return FirebaseService.getCurrentUser();
+  },
+
+  onAuthStateChanged: (callback: (user: any) => void) => {
+    return FirebaseService.onAuthStateChanged(callback);
+  },
+
+  // =========================
+  // SETTINGS (Firestore)
+  // =========================
+
+  fetchBackendSettings: async () => {
+    try {
+      const settings = await FirebaseService.getSettings();
+      if (settings) {
+        StoreAPI.setSettings(settings as BrandSettings);
+      }
+      return settings;
+    } catch (error) {
+      console.error('Erreur récupération settings:', error);
+      return StoreAPI.getSettings();
+    }
+  },
+
+  saveSettingsToBackend: async (settings: BrandSettings) => {
+    try {
+      await FirebaseService.saveSettings(settings);
+      StoreAPI.setSettings(settings);
+      return settings;
+    } catch (error) {
+      console.error('Erreur sauvegarde settings:', error);
+      throw error;
+    }
+  },
+
 };
 
 // React Hook to access synchronized reactive state
@@ -468,9 +587,12 @@ export function useStore() {
   useEffect(() => {
     const handleUpdate = () => setVersion((v: number) => v + 1);
     listeners.add(handleUpdate);
-    // Initial fetch from backend if available
+    
+    // Initial fetch
     StoreAPI.fetchBackendOrders();
     StoreAPI.fetchBackendProducts();
+    StoreAPI.fetchBackendSettings();
+    
     return () => {
       listeners.delete(handleUpdate);
     };
@@ -506,5 +628,16 @@ export function useStore() {
     formatWhatsAppOrderUrl: StoreAPI.formatWhatsAppOrderUrl,
     formatWhatsAppCartCheckoutUrl: StoreAPI.formatWhatsAppCartCheckoutUrl,
     formatWhatsAppConciergeUrl: StoreAPI.formatWhatsAppConciergeUrl,
+    signIn: StoreAPI.signIn,
+    signUpAdmin: StoreAPI.signUpAdmin,
+    changePassword: StoreAPI.changePassword,
+    resetPassword: StoreAPI.resetPassword,
+    signOut: StoreAPI.signOut,
+    getCurrentUser: StoreAPI.getCurrentUser,
+    onAuthStateChanged: StoreAPI.onAuthStateChanged,
+    
+    // Settings Firestore
+    fetchBackendSettings: StoreAPI.fetchBackendSettings,
+    saveSettingsToBackend: StoreAPI.saveSettingsToBackend,
   };
 }

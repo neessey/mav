@@ -125,6 +125,9 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+  deliveryAddress?: string;
+  deliveryInstructions?: string;
+
 }
 
 export interface CartItem {

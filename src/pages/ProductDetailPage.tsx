@@ -5,8 +5,15 @@ import { ArrowLeft, MessageCircle, ShoppingBag, Check, ShieldCheck, Truck, Spark
 import confetti from 'canvas-confetti';
 import { ProductCard } from '../components/ProductCard';
 
-// TODO: remplace par ton vrai lien marchand Wave Business
 const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_waw-9EveeQZb/c/ci';
+
+interface DeliveryFormData {
+  fullName: string;
+  phone: string;
+  city: string;
+  deliveryAddress: string;
+  deliveryInstructions?: string;
+}
 
 interface ProductDetailPageProps {
   productId: string;
@@ -23,7 +30,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   onSelectProduct,
   onOpenCart,
 }) => {
-  const { products, settings, addToCart, createOrder, formatWhatsAppOrderUrl } = useStore();
+  const { products, settings, addToCart, createOrder } = useStore();
 
   const product = products.find(p => p.id === productId || p.slug === productId) || products[0];
 
@@ -37,36 +44,45 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [processingMethod, setProcessingMethod] = useState<PaymentMethod | null>(null);
   const [showWhatsAppContinue, setShowWhatsAppContinue] = useState(false);
-const [pendingWhatsAppUrl, setPendingWhatsAppUrl] = useState<string | null>(null);
+  const [pendingWhatsAppUrl, setPendingWhatsAppUrl] = useState<string | null>(null);
 
-  // Détecte le retour de l'utilisateur depuis l'app Wave (visibilitychange)
-  // et relance automatiquement l'ouverture de WhatsApp avec la commande.
-useEffect(() => {
-  const handleVisibilityChange = () => {
-    if (document.visibilityState !== 'visible') return;
+  // États pour le formulaire de livraison
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false);
+  const [deliveryFormData, setDeliveryFormData] = useState<DeliveryFormData>({
+    fullName: '',
+    phone: '',
+    city: '',
+    deliveryAddress: '',
+    deliveryInstructions: ''
+  });
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof DeliveryFormData, string>>>({});
+  const [isSubmittingDelivery, setIsSubmittingDelivery] = useState(false);
 
-    const pendingRaw = sessionStorage.getItem('pendingWaveOrder');
-    if (!pendingRaw) return;
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
 
-    try {
-      const { whatsappUrl } = JSON.parse(pendingRaw);
+      const pendingRaw = sessionStorage.getItem('pendingWaveOrder');
+      if (!pendingRaw) return;
 
-      if (whatsappUrl) {
-        setPendingWhatsAppUrl(whatsappUrl);
-        setShowWhatsAppContinue(true);
+      try {
+        const { whatsappUrl } = JSON.parse(pendingRaw);
+        if (whatsappUrl) {
+          setPendingWhatsAppUrl(whatsappUrl);
+          setShowWhatsAppContinue(true);
+        }
+      } catch (error) {
+        console.error('Erreur récupération commande Wave:', error);
+        sessionStorage.removeItem('pendingWaveOrder');
       }
-    } catch (error) {
-      console.error('Erreur récupération commande Wave:', error);
-      sessionStorage.removeItem('pendingWaveOrder');
-    }
-  };
+    };
 
-  document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
-  return () => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-  };
-}, []);
   if (!product) {
     return (
       <div className="py-32 text-center text-white">
@@ -84,23 +100,58 @@ useEffect(() => {
   const isAvailable = product.status === 'available' || product.status === 'preorder';
   const isComingSoon = product.status === 'coming_soon';
 
-  // Ajoute une ligne "Paiement : ..." au texte du message WhatsApp généré par formatWhatsAppOrderUrl
-  const appendPaymentNoteToWhatsAppUrl = (url: string, method: PaymentMethod) => {
-    try {
-      const u = new URL(url);
-      const currentText = u.searchParams.get('text') || '';
-      const paymentLabel =
-        method === 'wave' ? '💳 Paiement : Wave (effectué)' : '💵 Paiement : à la livraison';
-      u.searchParams.set('text', `${currentText}\n\n${paymentLabel}`);
-      return u.toString();
-    } catch {
-      return url;
+  const validateDeliveryForm = (): boolean => {
+    const errors: Partial<Record<keyof DeliveryFormData, string>> = {};
+    
+    if (!deliveryFormData.fullName.trim()) {
+      errors.fullName = 'Le nom complet est requis';
+    }
+    
+    if (!deliveryFormData.phone.trim()) {
+      errors.phone = 'Le numéro de téléphone est requis';
+    } else if (!/^[0-9+\s-]{8,15}$/.test(deliveryFormData.phone.trim())) {
+      errors.phone = 'Numéro de téléphone invalide';
+    }
+    
+    if (!deliveryFormData.city.trim()) {
+      errors.city = 'La ville est requise';
+    }
+    
+    if (!deliveryFormData.deliveryAddress.trim()) {
+      errors.deliveryAddress = "L'adresse de livraison est requise";
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const resetDeliveryForm = () => {
+    setDeliveryFormData({
+      fullName: '',
+      phone: '',
+      city: '',
+      deliveryAddress: '',
+      deliveryInstructions: ''
+    });
+    setFormErrors({});
+  };
+
+  // CORRECTION: Fonction qui gère le passage du formulaire au paiement
+  const handleDeliveryFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateDeliveryForm()) {
+      // Fermer le formulaire de livraison
+      setShowDeliveryForm(false);
+      // Ouvrir le modal de paiement
+      setShowPaymentModal(true);
     }
   };
 
   const processOrder = async (method: PaymentMethod) => {
     setProcessingMethod(method);
     setIsOrdering(true);
+    setIsSubmittingDelivery(true);
+    
     confetti({
       particleCount: 60,
       spread: 60,
@@ -110,7 +161,7 @@ useEffect(() => {
 
     try {
       const orderTotal = product.price * quantity;
-      // 1. Créer la commande en base (déclenche la push notif admin)
+      
       const order = await createOrder({
         items: [
           {
@@ -125,40 +176,61 @@ useEffect(() => {
           }
         ],
         totalAmount: orderTotal,
-        customerCity: 'Abidjan',
-        notes: `Commande directe depuis fiche produit ${product.name} — Paiement : ${
+        customerName: deliveryFormData.fullName,
+        customerPhone: deliveryFormData.phone,
+        customerCity: deliveryFormData.city,
+        notes: `Commande depuis fiche produit ${product.name} — Paiement : ${
           method === 'wave' ? 'Wave' : 'À la livraison'
-        }`,
-        customerName: undefined,
-        customerPhone: undefined,
+        }\nAdresse: ${deliveryFormData.deliveryAddress}\nInstructions: ${deliveryFormData.deliveryInstructions || 'Aucune'}`,
         whatsappMessage: undefined,
         whatsappUrl: undefined
       });
 
-      // 2. Générer l'URL WhatsApp avec l'ID de commande
-      const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan', order.id);
-      const finalUrl = appendPaymentNoteToWhatsAppUrl(url, method);
+      const orderSummary = `
+ *Bonjour MARASSEURAVIE* 
+ Je souhaite valider ma commande :
+━━━━━━━━━━━━━━━━━
+ *Article:* ${product.name}
+ *Taille:* ${selectedSize}
+ *Couleur:* ${selectedColor}
+ *Quantité:* ${quantity}
+ *Total:* ${orderTotal.toLocaleString('fr-FR')} FCFA
+ *Paiement:* ${method === 'wave' ? 'Wave (déjà effectué)' : 'À la livraison'}
+━━━━━━━━━━━━━━━━━
+  *Client:* ${deliveryFormData.fullName}
+ *Téléphone:* ${deliveryFormData.phone}
+ *Ville:* ${deliveryFormData.city}
+ *Adresse:* ${deliveryFormData.deliveryAddress}
+${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.deliveryInstructions}` : ''}
+━━━━━━━━━━━━━━━━━
+`;
 
-     if (method === 'wave') {
-  sessionStorage.setItem(
-    'pendingWaveOrder',
-    JSON.stringify({
-      orderId: order.id,
-      whatsappUrl: finalUrl,
-    })
-  );
+      const phoneNumber = settings.whatsappNumber.replace(/[^0-9]/g, '');
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(orderSummary)}`;
 
-  window.location.assign(WAVE_MERCHANT_LINK);
-}
+      setShowPaymentModal(false);
+
+      if (method === 'wave') {
+        sessionStorage.setItem(
+          'pendingWaveOrder',
+          JSON.stringify({
+            orderId: order.id,
+            whatsappUrl: whatsappUrl,
+          })
+        );
+        window.location.assign(WAVE_MERCHANT_LINK);
+      } else {
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+        resetDeliveryForm();
+      }
+
     } catch (err) {
       console.error('Order creation error:', err);
-      // Fallback : ouvrir WhatsApp directement même si la commande n'a pas pu être créée
-      const { url } = formatWhatsAppOrderUrl(product, selectedSize, selectedColor, quantity, 'Abidjan');
-      window.open(appendPaymentNoteToWhatsAppUrl(url, method), '_blank', 'noopener,noreferrer');
+      alert('Une erreur est survenue lors de la création de la commande. Veuillez réessayer.');
     } finally {
       setIsOrdering(false);
       setProcessingMethod(null);
-      setShowPaymentModal(false);
+      setIsSubmittingDelivery(false);
     }
   };
 
@@ -176,7 +248,6 @@ useEffect(() => {
     <div id="product-detail-page" className="w-full bg-[#050505] text-[#F2F2F0] py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Breadcrumb navigation */}
         <div className="flex items-center gap-3 text-xs font-mono-brand uppercase text-neutral-400 mb-8 border-b border-neutral-900 pb-4">
           <button
             onClick={() => onNavigate('shop')}
@@ -196,12 +267,9 @@ useEffect(() => {
           <span className="text-white truncate max-w-[200px]">{product.name}</span>
         </div>
 
-        {/* Main Product Layout (Split Grid) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-16 items-start">
           
-          {/* Left Column: Photo Gallery (7 cols) */}
           <div className="lg:col-span-7 flex flex-col gap-4">
-            {/* Primary Large Image */}
             <div className="relative aspect-[3/4] sm:aspect-[4/5] bg-[#0D0D0D] border border-white/15 overflow-hidden">
               <img
                 src={product.images[selectedImageIndex] || product.images[0]}
@@ -209,29 +277,23 @@ useEffect(() => {
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover object-center transition-all duration-500"
               />
-
-              {/* Badge */}
               {product.badge && (
                 <div className="absolute top-4 left-4 z-10">
-                  <span className="text-xs uppercase font-mono-brand  px-3 py-1.5 bg-white text-black tracking-widest shadow-xl">
+                  <span className="text-xs uppercase font-mono-brand px-3 py-1.5 bg-white text-black tracking-widest shadow-xl">
                     {product.badge}
                   </span>
                 </div>
               )}
-
-              {/* Image counter pill */}
               <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm text-[10px] font-mono-brand text-white px-2.5 py-1 border border-white/15">
                 {selectedImageIndex + 1} / {product.images.length}
               </div>
             </div>
 
-            {/* Thumbnails Row */}
             {product.images.length > 1 && (
               <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
                 {product.images.map((img, idx) => (
                   <button
                     key={idx}
-                    id={`thumb-${idx}`}
                     onClick={() => setSelectedImageIndex(idx)}
                     className={`aspect-[3/4] bg-neutral-900 overflow-hidden border transition-all ${
                       selectedImageIndex === idx
@@ -251,10 +313,8 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Right Column: Product Specs & Ordering (5 cols) */}
           <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-28">
             
-            {/* Header info */}
             <div className="flex flex-col gap-2 border-b border-neutral-900 pb-6">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-mono-brand uppercase tracking-[0.3em] text-neutral-400">
@@ -267,7 +327,7 @@ useEffect(() => {
                 </span>
               </div>
 
-              <h1 className="font-display  text-2xl sm:text-4xl text-white uppercase tracking-tight leading-tight">
+              <h1 className="font-display text-2xl sm:text-4xl text-white uppercase tracking-tight leading-tight">
                 {product.name}
               </h1>
 
@@ -277,9 +337,8 @@ useEffect(() => {
                 </p>
               )}
 
-              {/* Price */}
               <div className="pt-2 flex items-baseline gap-3">
-                <span className="font-display  text-3xl sm:text-4xl text-white tracking-tight">
+                <span className="font-display text-3xl sm:text-4xl text-white tracking-tight">
                   {isComingSoon ? (
                     <span className="text-xl text-neutral-400">COMING SOON</span>
                   ) : (
@@ -292,12 +351,10 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Description */}
             <div className="text-xs sm:text-sm text-neutral-300 leading-relaxed font-sans">
               <p>{product.description}</p>
             </div>
 
-            {/* Color selection */}
             {product.colors && product.colors.length > 0 && (
               <div className="flex flex-col gap-2">
                 <span className="text-[11px] font-mono-brand uppercase tracking-widest text-neutral-400">
@@ -325,7 +382,6 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Size selection */}
             {product.sizes && product.sizes.length > 0 && (
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
@@ -345,7 +401,6 @@ useEffect(() => {
                   {product.sizes.map(size => (
                     <button
                       key={size}
-                      id={`size-btn-${size}`}
                       onClick={() => setSelectedSize(size)}
                       className={`py-3 text-center text-xs font-mono-brand font-bold uppercase tracking-wider border transition-all ${
                         selectedSize === size
@@ -360,7 +415,6 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Quantity Selector */}
             {isAvailable && (
               <div className="flex items-center gap-4 pt-2">
                 <span className="text-[11px] font-mono-brand uppercase tracking-widest text-neutral-400">
@@ -386,25 +440,23 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Primary Actions: Order & Bag */}
             <div className="flex flex-col gap-3 pt-4 border-t border-neutral-900">
               {isAvailable ? (
                 <>
-                  {/* Open payment method modal (replaces direct WhatsApp trigger) */}
                   <button
-                    id="product-whatsapp-order-btn"
-                    onClick={() => setShowPaymentModal(true)}
+                    onClick={() => {
+                      setShowDeliveryForm(true);
+                      console.log('🟢 Ouverture du formulaire de livraison');
+                    }}
                     disabled={isOrdering}
-                    className="w-full bg-white text-black font-display  text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full bg-white text-black font-display text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <MessageCircle className="w-4 h-4 fill-current" />
                     <span>COMMANDER</span>
                   </button>
 
-                  {/* Add to Bag Secondary */}
                   <div className="flex gap-3">
                     <button
-                      id="product-add-to-bag-btn"
                       onClick={handleAddToBag}
                       className="flex-1 bg-black border border-white/40 text-white font-bold text-xs uppercase tracking-widest py-3.5 px-4 flex items-center justify-center gap-2 hover:bg-neutral-900 hover:border-white transition-colors"
                     >
@@ -438,7 +490,6 @@ useEffect(() => {
               )}
             </div>
 
-            {/* Reassurances & Tech Specs */}
             <div className="flex flex-col gap-3 pt-6 border-t border-neutral-900 text-xs font-mono-brand text-neutral-400">
               <div className="flex items-center gap-3">
                 <Truck className="w-4 h-4 text-neutral-300" />
@@ -454,7 +505,6 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Details Accordion */}
             {product.details && product.details.length > 0 && (
               <div className="border-t border-neutral-900 pt-4">
                 <span className="text-[10px] font-mono-brand uppercase tracking-widest text-neutral-500 block mb-3">
@@ -475,12 +525,11 @@ useEffect(() => {
 
         </div>
 
-        {/* Related Products */}
         {relatedProducts.length > 0 && (
           <div className="mt-24 pt-12 border-t border-white/10">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="font-display  text-2xl sm:text-3xl text-white uppercase tracking-tight">
-                COMPLÉTER LA SILHOUETTE
+              <h3 className="font-display text-2xl sm:text-3xl text-white uppercase tracking-tight">
+                PRODUITS SIMILAIRES
               </h3>
               <button
                 onClick={() => onNavigate('shop')}
@@ -506,65 +555,57 @@ useEffect(() => {
 
       </div>
 
+      {/* Modal de confirmation WhatsApp après Wave */}
       {showWhatsAppContinue && pendingWhatsAppUrl && (
-  <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-6 shadow-2xl text-white">
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-6 shadow-2xl text-white">
+            <div className="flex items-center justify-center mb-5">
+              <div className="w-14 h-14 rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center">
+                <Check className="w-7 h-7 text-emerald-400" />
+              </div>
+            </div>
 
-      <div className="flex items-center justify-center mb-5">
-        <div className="w-14 h-14 rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center">
-          <Check className="w-7 h-7 text-emerald-400" />
+            <div className="text-center">
+              <h3 className="font-display text-xl uppercase tracking-wider mb-3">
+                Paiement Wave terminé ?
+              </h3>
+              <p className="text-xs text-neutral-400 font-sans leading-relaxed mb-6">
+                Si tu as terminé ton paiement sur Wave, clique sur le bouton
+                ci-dessous pour finaliser ta commande avec WhatsApp.
+              </p>
+
+              <button
+                onClick={() => {
+                  if (!pendingWhatsAppUrl) return;
+                  sessionStorage.removeItem('pendingWaveOrder');
+                  window.open(pendingWhatsAppUrl, '_blank', 'noopener,noreferrer');
+                  setPendingWhatsAppUrl(null);
+                  setShowWhatsAppContinue(false);
+                }}
+                className="w-full bg-white text-black py-4 px-6 font-display text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+                J'AI PAYÉ → CONTINUER SUR WHATSAPP
+              </button>
+
+              <button
+                onClick={() => {
+                  setPendingWhatsAppUrl(null);
+                  setShowWhatsAppContinue(false);
+                  sessionStorage.removeItem('pendingWaveOrder');
+                }}
+                className="w-full mt-3 border border-neutral-800 text-neutral-400 py-3 text-xs font-mono-brand uppercase tracking-widest hover:text-white hover:border-neutral-600 transition-all"
+              >
+                FERMER
+              </button>
+
+              <p className="text-[10px] text-neutral-600 font-mono-brand mt-4">
+                Ta commande a déjà été enregistrée.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="text-center">
-        <h3 className="font-display text-xl uppercase tracking-wider mb-3">
-          Paiement Wave terminé ?
-        </h3>
-
-        <p className="text-xs text-neutral-400 font-sans leading-relaxed mb-6">
-          Si tu as terminé ton paiement sur Wave, clique sur le bouton
-          ci-dessous pour finaliser ta commande avec WhatsApp.
-        </p>
-
-        <button
-          onClick={() => {
-            if (!pendingWhatsAppUrl) return;
-
-            sessionStorage.removeItem('pendingWaveOrder');
-
-            window.open(
-              pendingWhatsAppUrl,
-              '_blank',
-              'noopener,noreferrer'
-            );
-
-            setPendingWhatsAppUrl(null);
-            setShowWhatsAppContinue(false);
-          }}
-          className="w-full bg-white text-black py-4 px-6 font-display text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all"
-        >
-          <MessageCircle className="w-4 h-4 fill-current" />
-          J'AI PAYÉ → CONTINUER SUR WHATSAPP
-        </button>
-
-        <button
-          onClick={() => {
-            setPendingWhatsAppUrl(null);
-            setShowWhatsAppContinue(false);
-            sessionStorage.removeItem('pendingWaveOrder');
-          }}
-          className="w-full mt-3 border border-neutral-800 text-neutral-400 py-3 text-xs font-mono-brand uppercase tracking-widest hover:text-white hover:border-neutral-600 transition-all"
-        >
-          FERMER
-        </button>
-
-        <p className="text-[10px] text-neutral-600 font-mono-brand mt-4">
-          Ta commande a déjà été enregistrée.
-        </p>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Payment Method Modal */}
       {showPaymentModal && (
@@ -594,10 +635,9 @@ useEffect(() => {
             </p>
 
             <div className="flex flex-col gap-3">
-              {/* Cash on delivery */}
               <button
                 onClick={() => processOrder('cod')}
-                disabled={isOrdering}
+                disabled={isOrdering || isSubmittingDelivery}
                 className="w-full flex items-center gap-4 border border-neutral-800 hover:border-white bg-black px-4 py-4 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800">
@@ -613,10 +653,9 @@ useEffect(() => {
                 </div>
               </button>
 
-              {/* Wave */}
               <button
                 onClick={() => processOrder('wave')}
-                disabled={isOrdering}
+                disabled={isOrdering || isSubmittingDelivery}
                 className="w-full flex items-center gap-4 border border-neutral-800 hover:border-white bg-black px-4 py-4 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <div className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800">
@@ -640,6 +679,172 @@ useEffect(() => {
         </div>
       )}
 
+      {/* Delivery Form Modal - CORRIGÉ */}
+      {showDeliveryForm && (
+        <div
+          className="fixed inset-0 z-[55] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => !isSubmittingDelivery && setShowDeliveryForm(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-[#0D0D0D] border border-white/20 p-6 md:p-8 shadow-2xl text-white max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-4 mb-6">
+              <div>
+                <span className="font-display text-xl uppercase tracking-wider block">
+                  INFORMATIONS DE LIVRAISON
+                </span>
+                <span className="text-[10px] font-mono-brand text-neutral-400 mt-1 block">
+                  Remplissez vos coordonnées pour finaliser la commande
+                </span>
+              </div>
+              <button
+                onClick={() => !isSubmittingDelivery && setShowDeliveryForm(false)}
+                className="text-neutral-400 hover:text-white disabled:opacity-40"
+                disabled={isSubmittingDelivery}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Utiliser handleDeliveryFormSubmit au lieu de l'inline */}
+            <form onSubmit={handleDeliveryFormSubmit} className="space-y-5">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400">
+                    Nom complet <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryFormData.fullName}
+                    onChange={(e) => setDeliveryFormData({...deliveryFormData, fullName: e.target.value})}
+                    placeholder="Ex: Kouadio Jean"
+                    className={`w-full bg-black border ${
+                      formErrors.fullName ? 'border-red-500' : 'border-neutral-800'
+                    } text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none transition-colors`}
+                    disabled={isSubmittingDelivery}
+                  />
+                  {formErrors.fullName && (
+                    <p className="text-[10px] text-red-400 font-mono-brand">{formErrors.fullName}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400">
+                    Téléphone <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={deliveryFormData.phone}
+                    onChange={(e) => setDeliveryFormData({...deliveryFormData, phone: e.target.value})}
+                    placeholder="Ex: 07 67 89 10 11"
+                    className={`w-full bg-black border ${
+                      formErrors.phone ? 'border-red-500' : 'border-neutral-800'
+                    } text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none transition-colors`}
+                    disabled={isSubmittingDelivery}
+                  />
+                  {formErrors.phone && (
+                    <p className="text-[10px] text-red-400 font-mono-brand">{formErrors.phone}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400">
+                    Ville <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryFormData.city}
+                    onChange={(e) => setDeliveryFormData({...deliveryFormData, city: e.target.value})}
+                    placeholder="Ex: Abidjan, Cocody"
+                    className={`w-full bg-black border ${
+                      formErrors.city ? 'border-red-500' : 'border-neutral-800'
+                    } text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none transition-colors`}
+                    disabled={isSubmittingDelivery}
+                  />
+                  {formErrors.city && (
+                    <p className="text-[10px] text-red-400 font-mono-brand">{formErrors.city}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400">
+                  Adresse de livraison <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={deliveryFormData.deliveryAddress}
+                  onChange={(e) => setDeliveryFormData({...deliveryFormData, deliveryAddress: e.target.value})}
+                  placeholder="Ex: Résidence des Palmiers, Appartement 12, Rue du Commerce"
+                  rows={2}
+                  className={`w-full bg-black border ${
+                    formErrors.deliveryAddress ? 'border-red-500' : 'border-neutral-800'
+                  } text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none transition-colors resize-none`}
+                  disabled={isSubmittingDelivery}
+                />
+                {formErrors.deliveryAddress && (
+                  <p className="text-[10px] text-red-400 font-mono-brand">{formErrors.deliveryAddress}</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400">
+                  Instructions supplémentaires
+                </label>
+                <textarea
+                  value={deliveryFormData.deliveryInstructions}
+                  onChange={(e) => setDeliveryFormData({...deliveryFormData, deliveryInstructions: e.target.value})}
+                  placeholder="Ex: Sonner 3 fois, porte bleue au fond de la cour"
+                  rows={2}
+                  className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none transition-colors resize-none"
+                  disabled={isSubmittingDelivery}
+                />
+              </div>
+
+              <div className="p-4 bg-black border border-neutral-800 space-y-1.5">
+                <span className="text-[10px] font-mono-brand uppercase tracking-wider text-neutral-400 block">
+                  Résumé de la commande
+                </span>
+                <div className="flex justify-between text-xs">
+                  <span className="text-neutral-400">{product.name} × {quantity}</span>
+                  <span className="text-white font-bold">{(product.price * quantity).toLocaleString('fr-FR')} FCFA</span>
+                </div>
+                <div className="flex justify-between text-xs border-t border-neutral-800 pt-1.5">
+                  <span className="text-neutral-400">Taille / Couleur</span>
+                  <span className="text-white">{selectedSize} / {selectedColor}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold border-t border-neutral-800 pt-1.5 mt-1">
+                  <span className="text-white">Total</span>
+                  <span className="text-white">{(product.price * quantity).toLocaleString('fr-FR')} FCFA</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeliveryForm(false)}
+                  className="flex-1 py-3 border border-neutral-800 text-neutral-400 text-xs font-mono-brand uppercase tracking-wider hover:text-white hover:border-neutral-600 transition-colors"
+                  disabled={isSubmittingDelivery}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-white text-black font-display text-xs uppercase tracking-[0.2em] hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
+                  disabled={isSubmittingDelivery}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Continuer</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Size Guide Modal */}
       {showSizeGuide && (
         <div
@@ -651,7 +856,7 @@ useEffect(() => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center border-b border-neutral-800 pb-4 mb-4">
-              <span className="font-display  text-base uppercase tracking-wider">
+              <span className="font-display text-base uppercase tracking-wider">
                 GUIDE DES TAILLES MARASSEURAVIE
               </span>
               <button onClick={() => setShowSizeGuide(false)} className="text-neutral-400 hover:text-white">

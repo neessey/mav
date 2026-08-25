@@ -17,7 +17,6 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onNavigate }) 
         {/* Header */}
         <div className="flex flex-col gap-4 mb-16 border-b border-white/10 pb-8">
           <div className="flex items-center gap-2 text-[10px] font-mono-brand uppercase tracking-[0.3em] text-neutral-400">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
             <span>ARCHIVES & CATÉGORIES OFFICIELLES</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">

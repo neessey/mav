@@ -46,7 +46,9 @@ import {
   Menu,
   X,
   User,
-  ArrowUpRight
+  ArrowUpRight,
+  Mail,
+  Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -55,7 +57,7 @@ interface AdminPageProps {
   initialOrderId?: string;
 }
 
-type AdminTab = 'dashboard' | 'orders' | 'products' | 'collections' | 'homepage' | 'notifications' | 'database';
+type AdminTab = 'dashboard' | 'orders' | 'products' | 'collections' | 'notifications' | 'database' | 'settings';
 
 interface NavItem {
   id: AdminTab;
@@ -88,13 +90,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     updateOrderStatus,
     deleteOrder,
     setAdminAuth,
-    resetDefaults
+    resetDefaults,
+    signIn,
+    signOut: storeSignOut,
+    changePassword,
+    resetPassword,
+    getCurrentUser,
+    onAuthStateChanged,
+    saveSettingsToBackend,
   } = useStore();
 
   // Auth local state
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordChangeError, setPasswordChangeError] = useState('');
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Sidebar toggle state (mobile / responsive)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -105,8 +123,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     initialOrderId ? orders.find(o => o.id === initialOrderId) || null : null
   );
 
-const [productImages, setProductImages] =
-  useState<CloudinaryImage[]>([]);
+  const [productImages, setProductImages] = useState<CloudinaryImage[]>([]);
 
   // Orders filters
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('ALL');
@@ -146,6 +163,16 @@ const [productImages, setProductImages] =
   const [isSubscribingPush, setIsSubscribingPush] = useState(false);
   const [pushFeedback, setPushFeedback] = useState<string | null>(null);
 
+  // Vérifier l'état d'authentification au montage
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged((user) => {
+      if (user) {
+        // L'utilisateur est connecté
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(() => {
     // Check push support
     const checkPush = async () => {
@@ -155,28 +182,26 @@ const [productImages, setProductImages] =
     checkPush();
   }, []);
 
-  // Dans AdminPage.tsx, ajoutez un useEffect pour vérifier le SW
-
-useEffect(() => {
-  // Vérifier le support et enregistrer le SW
-  const checkAndRegisterSW = async () => {
-    if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        console.log('✅ Service Worker prêt:', registration);
-        setPushStatus(prev => ({ ...prev, isSupported: true }));
-      } catch (error) {
-        console.warn('⚠️ Service Worker non disponible:', error);
+  useEffect(() => {
+    // Vérifier le support et enregistrer le SW
+    const checkAndRegisterSW = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          console.log('✅ Service Worker prêt:', registration);
+          setPushStatus(prev => ({ ...prev, isSupported: true }));
+        } catch (error) {
+          console.warn('⚠️ Service Worker non disponible:', error);
+          setPushStatus(prev => ({ ...prev, isSupported: false }));
+        }
+      } else {
+        console.warn('⚠️ Service Worker non supporté par ce navigateur');
         setPushStatus(prev => ({ ...prev, isSupported: false }));
       }
-    } else {
-      console.warn('⚠️ Service Worker non supporté par ce navigateur');
-      setPushStatus(prev => ({ ...prev, isSupported: false }));
-    }
-  };
+    };
 
-  checkAndRegisterSW();
-}, []);
+    checkAndRegisterSW();
+  }, []);
 
   useEffect(() => {
     if (initialOrderId) {
@@ -188,344 +213,208 @@ useEffect(() => {
     }
   }, [initialOrderId, orders]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordInput === 'admin' || passwordInput === 'marasseuravie2025' || passwordInput === 'mav2025') {
-      setAdminAuth({ isAuthenticated: true, email: emailInput || 'admin@marasseuravie.com' });
-      setAuthError('');
-      confetti({ particleCount: 40, spread: 50 });
+  useEffect(() => {
+    if (editingProduct) {
+      // Convertir les images du produit en CloudinaryImage[] avec des ids stables
+      const images = editingProduct.images.map((url, idx) => ({
+        secure_url: url,
+        url: url,
+        publicId: `existing_${editingProduct.id}_${idx}`
+      }));
+      setProductImages(images);
     } else {
-      setAuthError('Mot de passe incorrect. (Indice: marasseuravie2025 ou admin)');
+      setProductImages([]);
     }
-  };
+  }, [editingProduct?.id]);
 
-  const handleLogout = () => {
-    setAdminAuth({ isAuthenticated: false, email: '' });
-    onNavigate('home');
-  };
-
-  // Dans AdminPage.tsx, ajoutez une vérification de l'environnement
-
-// Dans le composant, avant le handleSubscribePush
-const isPWA = () => {
-  return window.matchMedia('(display-mode: standalone)').matches || 
-         (navigator as any).standalone === true;
-};
-
-// Dans le render des notifications, affichez l'état
-{!pushStatus.isSupported && (
-  <div className="p-4 bg-amber-950/30 border border-amber-800/40 rounded-sm text-amber-400 text-xs font-mono-brand">
-    <span className="font-bold">⚠️</span> Les notifications push ne sont pas supportées sur ce navigateur.
-    {!isPWA() && (
-      <span className="block mt-1 text-neutral-400">
-        💡 Pour recevoir les notifications, installez l'application sur votre appareil.
-      </span>
-    )}
-  </div>
-)}
-const handleSubscribePush = async () => {
-  setIsSubscribingPush(true);
-  setPushFeedback(null);
-
-  try {
-    // 1. Vérifier si on est sur mobile
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
-                  (navigator as any).standalone === true;
-
-    console.log('📱 Mobile:', isMobile, 'PWA:', isPWA);
-
-    // 2. Vérifier le support des notifications
-    if (!('Notification' in window)) {
-      setPushFeedback('❌ Les notifications ne sont pas supportées sur cet appareil.');
-      setIsSubscribingPush(false);
-      return;
-    }
-
-    // 3. Vérifier le Service Worker
-    if (!('serviceWorker' in navigator)) {
-      setPushFeedback('❌ Service Worker non disponible sur ce navigateur.');
-      setIsSubscribingPush(false);
-      return;
-    }
-
-    // 4. Demander la permission
-    setPushFeedback('⏳ Demande de permission...');
-    const permission = await Notification.requestPermission();
-    
-    if (permission !== 'granted') {
-      setPushFeedback('❌ Permission refusée. Activez les notifications dans les paramètres du téléphone.');
-      setIsSubscribingPush(false);
-      return;
-    }
-
-    // 5. Enregistrer/Activer le Service Worker
-    setPushFeedback('⏳ Activation du Service Worker...');
-    let registration = await navigator.serviceWorker.getRegistration('/');
-    
-    if (!registration) {
-      // Essayer d'enregistrer le SW
-      registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/'
-      });
-      
-      // Attendre que le SW soit actif
-      await navigator.serviceWorker.ready;
-      console.log('✅ Service Worker enregistré:', registration);
-    }
-
-    // 6. Vérifier PushManager
-    if (!registration.pushManager) {
-      // Sur certains navigateurs mobiles, pushManager peut être null
-      setPushFeedback('⚠️ PushManager non disponible. Les notifications seront basiques.');
-      
-      // On continue quand même avec les notifications simples
-      setPushStatus({ 
-        isSupported: true, 
-        permission: 'granted', 
-        isSubscribed: false 
-      });
-      
-      // Envoyer une notification de test
-      await sendTestNotification();
-      
-      setPushFeedback('✅ Notifications activées (mode basique) !');
-      confetti({ particleCount: 60, spread: 70 });
-      setIsSubscribingPush(false);
-      return;
-    }
-
-    // 7. Vérifier l'abonnement existant
-    let subscription = await registration.pushManager.getSubscription();
-    
-    if (subscription) {
-      setPushStatus({ 
-        isSupported: true, 
-        permission: 'granted', 
-        isSubscribed: true 
-      });
-      setPushFeedback('✅ Déjà abonné !');
-      await sendTestNotification();
-      setIsSubscribingPush(false);
-      return;
-    }
-
-    // 8. Créer un nouvel abonnement
-    setPushFeedback('⏳ Création de l\'abonnement...');
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
     
     try {
-      // Sur mobile, souvent besoin d'une clé VAPID
-      let vapidPublicKey = null;
-      
-      try {
-        const response = await fetch('/api/notifications/vapid-public-key');
-        if (response.ok) {
-          const data = await response.json();
-          vapidPublicKey = data.publicKey;
-        }
-      } catch (e) {
-        console.log('⚠️ Backend VAPID non disponible');
-      }
-
-      if (vapidPublicKey) {
-        const vapidKey = urlBase64ToUint8Array(vapidPublicKey);
-        // Use a standalone ArrayBuffer to satisfy the Push API type definition.
-        const applicationServerKey = new Uint8Array(vapidKey.length);
-        applicationServerKey.set(vapidKey);
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: applicationServerKey.buffer
-        });
-      } else {
-        // Sur certains navigateurs, on peut s'abonner sans VAPID
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true
-        });
-      }
-
-      console.log('✅ Abonnement créé:', subscription?.toJSON());
-
-      // Envoyer l'abonnement au backend
-      if (subscription) {
-        try {
-          await fetch('/api/notifications/subscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              subscription: subscription.toJSON(),
-              userAgent: navigator.userAgent,
-              isMobile: isMobile,
-              isPWA: isPWA
-            })
-          });
-        } catch (e) {
-          console.warn('⚠️ Backend subscription failed');
-        }
-      }
-
-      setPushStatus({ 
-        isSupported: true, 
-        permission: 'granted', 
-        isSubscribed: true 
-      });
-      setPushFeedback('✅ Notifications push activées avec succès !');
-      confetti({ particleCount: 60, spread: 70 });
-
-      // Envoyer une notification de test
-      setTimeout(() => {
-        sendTestNotification();
-      }, 1000);
-
+      await signIn(emailInput, passwordInput);
+      confetti({ particleCount: 40, spread: 50 });
     } catch (error: any) {
-      console.error('Erreur subscription:', error);
-      
-      // Fallback: notifications basiques
-      setPushStatus({ 
-        isSupported: true, 
-        permission: 'granted', 
-        isSubscribed: false 
-      });
-      setPushFeedback('✅ Notifications activées (mode simplifié) !');
-      await sendTestNotification();
+      setAuthError(error.message || 'Erreur de connexion.');
     }
+  };
 
-  } catch (err: any) {
-    console.error('❌ Erreur:', err);
-    setPushFeedback(`❌ ${err.message || 'Échec de l\'activation'}`);
-  } finally {
-    setIsSubscribingPush(false);
-  }
-};
-// Ajoutez cet useEffect après les déclarations d'état
-// ⚠️ Ne dépend QUE de l'id du produit édité, pas de l'objet entier.
-// Avant, [editingProduct] se redéclenchait à CHAQUE frappe (nom, prix, etc.)
-// car chaque champ fait setEditingProduct({ ...editingProduct, xxx }) → nouvelle
-// référence d'objet → l'effect régénérait productImages avec des publicId
-// aléatoires (Math.random()) en boucle, désynchronisant l'upload en cours du
-// ProductImageUploader et faisant afficher/enregistrer la mauvaise image.
-useEffect(() => {
-  if (editingProduct) {
-    // Convertir les images du produit en CloudinaryImage[] avec des ids stables
-    const images = editingProduct.images.map((url, idx) => ({
-      secure_url: url,
-      url: url,
-      publicId: `existing_${editingProduct.id}_${idx}`
-    }));
-    setProductImages(images);
-  } else {
-    setProductImages([]);
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [editingProduct?.id]);
-// Fonction pour envoyer une notification de test
-const sendTestNotification = async () => {
-  try {
-    // Essayer via Service Worker
-    const registration = await navigator.serviceWorker.ready;
-    if (registration && registration.showNotification) {
-      await registration.showNotification('🔔 MARASSEURAVIE', {
-        body: 'Notifications activées sur votre téléphone !',
-        icon: '/assets/logo.png',
-        badge: '/assets/logo.png',
-        requireInteraction: true,
-        data: {
-          url: '/admin'
-        }
-      });
+  const handleLogout = async () => {
+    try {
+      await storeSignOut();
+      onNavigate('home');
+    } catch (error) {
+      console.error('Erreur déconnexion:', error);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordChangeError('');
+    setPasswordChangeSuccess('');
+    
+    if (newPassword.length < 6) {
+      setPasswordChangeError('Le nouveau mot de passe doit faire au moins 6 caractères.');
       return;
     }
-  } catch (e) {
-    console.warn('⚠️ SW notification failed');
-  }
+    
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+    
+    setIsChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPasswordChangeSuccess('Mot de passe changé avec succès !');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setTimeout(() => setPasswordChangeSuccess(''), 5000);
+    } catch (error: any) {
+      setPasswordChangeError(error.message || 'Erreur lors du changement de mot de passe.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
-  // Fallback: Notification API classique
-  try {
-    const notification = new Notification('MARASSEURAVIE', {
-      body: 'Notifications activées sur votre téléphone !',
-      icon: '/assets/logo.png',
-    });
+  const handleResetPassword = async () => {
+    if (!emailInput) {
+      setAuthError('Veuillez entrer votre email.');
+      return;
+    }
+    
+    setIsResettingPassword(true);
+    setAuthError('');
+    try {
+      await resetPassword(emailInput);
+      setAuthError('Email de réinitialisation envoyé ! Vérifiez votre boîte mail.');
+      setTimeout(() => setAuthError(''), 10000);
+    } catch (error: any) {
+      setAuthError(error.message || 'Erreur d\'envoi de l\'email.');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
 
-    notification.onclick = () => {
-      window.focus();
-      window.location.href = '/admin';
-    };
+  const isPWA = () => {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           (navigator as any).standalone === true;
+  };
 
-    setTimeout(() => notification.close(), 5000);
-  } catch (e) {
-    console.warn('⚠️ Notification API failed');
-    // Dernier fallback
-    alert('✅ Notifications activées avec succès !');
-  }
-};
+  const handleSubscribePush = async () => {
+    setIsSubscribingPush(true);
+    setPushFeedback(null);
 
-// Helper pour VAPID
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
+    try {
+      setPushFeedback('⏳ Activation des notifications push…');
 
+      // One single subscription flow: permission -> service worker -> VAPID
+      // subscription -> server registration. No fake/local success state.
+      const result = await PushNotificationService.subscribeAdminDevice();
 
+      if (!result.success) {
+        setPushFeedback(`❌ ${result.message}`);
+        return;
+      }
+
+      const status = await PushNotificationService.getSubscriptionStatus();
+      setPushStatus(status);
+      setPushFeedback('✅ Notifications push réelles activées sur cet appareil.');
+
+      // Verify the complete chain by asking the server to send a real push.
+      try {
+        const testResult = await PushNotificationService.sendTestNotification();
+        if (testResult?.success && Number(testResult.sentCount) > 0) {
+          setPushFeedback('✅ Notifications push activées et test réel envoyé.');
+        } else {
+          setPushFeedback('⚠️ Abonnement activé, mais le serveur n’a trouvé aucun appareil à notifier.');
+        }
+      } catch (testError) {
+        console.warn('Push test failed:', testError);
+        setPushFeedback('⚠️ Abonnement activé, mais le test serveur a échoué.');
+      }
+
+      confetti({ particleCount: 60, spread: 70 });
+    } catch (error: any) {
+      console.error('❌ Push activation error:', error);
+      setPushFeedback(`❌ ${error?.message || 'Échec de l’activation des notifications.'}`);
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
+
+  const sendTestNotification = async () => {
+    try {
+      const result = await PushNotificationService.sendTestNotification();
+
+      if (result?.success && Number(result.sentCount) > 0) {
+        setPushFeedback(`✅ Test push envoyé à ${result.sentCount} appareil(s).`);
+      } else {
+        setPushFeedback('⚠️ Aucun appareil push actif n’a reçu le test.');
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error('Erreur test push:', error);
+      setPushFeedback(`❌ Test push impossible : ${error?.message || 'erreur serveur'}`);
+      throw error;
+    }
+  };
 
   const handleCreateNewProduct = () => {
-  const newProduct = {
-    id: `mav-custom-${Date.now()}`,
-    name: 'Nouveau Produit MARASSEURAVIE',
-    slug: `produit-${Date.now()}`,
-    subtitle: 'Édition 2025',
-    description: 'Description de la nouvelle pièce de luxe streetwear...',
-    price: 35000,
-    category: 'tricots' as ProductCategory,
-    images: [], // Commencer avec un tableau vide
-    sizes: ['S', 'M', 'L', 'XL'],
-    colors: [{ name: 'Noir Profond', hex: '#000000' }],
-    stock: 10,
-    status: 'available' as ProductStatus,
-    badge: 'NEW' as const,
-    featured: true,
-    isNewDrop: true,
-    composition: '100% Coton Peigné 520 GSM',
-    care: 'Lavage délicat 30°C.',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    const newProduct = {
+      id: `mav-custom-${Date.now()}`,
+      name: 'Nouveau Produit MARASSEURAVIE',
+      slug: `produit-${Date.now()}`,
+      subtitle: 'Édition 2025',
+      description: 'Description de la nouvelle pièce de luxe streetwear...',
+      price: 35000,
+      category: 'tshirts' as ProductCategory,
+      images: [],
+      sizes: ['S', 'M', 'L', 'XL'],
+      colors: [{ name: 'Noir Profond', hex: '#000000' }],
+      stock: 10,
+      status: 'available' as ProductStatus,
+      badge: 'NEW' as const,
+      featured: true,
+      isNewDrop: true,
+      composition: '100% Coton Peigné 520 GSM',
+      care: 'Lavage délicat 30°C.',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setEditingProduct(newProduct);
+    setProductImages([]);
+    setIsCreatingProduct(true);
+    setProductSaveError(null);
   };
-  setEditingProduct(newProduct);
-  setProductImages([]); // Réinitialiser les images
-  setIsCreatingProduct(true);
-  setProductSaveError(null);
-};
 
   const handleSaveProductForm = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!editingProduct) return;
+    e.preventDefault();
+    if (!editingProduct) return;
 
-  // S'assurer que les images sont à jour
-  const productToSave = {
-    ...editingProduct,
-    images: productImages.length > 0
-      ? productImages.map(img => img.secure_url || img.url)
-      : editingProduct.images
+    const productToSave = {
+      ...editingProduct,
+      images: productImages.length > 0
+        ? productImages.map(img => img.secure_url || img.url)
+        : editingProduct.images
+    };
+
+    setIsSavingProduct(true);
+    setProductSaveError(null);
+    try {
+      await saveProduct(productToSave);
+      setEditingProduct(null);
+      setIsCreatingProduct(false);
+      setProductImages([]);
+    } catch (err: any) {
+      console.error('Erreur sauvegarde produit:', err);
+      setProductSaveError(err?.message || 'Impossible d\'enregistrer le produit. Réessaie.');
+    } finally {
+      setIsSavingProduct(false);
+    }
   };
-
-  setIsSavingProduct(true);
-  setProductSaveError(null);
-  try {
-    await saveProduct(productToSave);
-    setEditingProduct(null);
-    setIsCreatingProduct(false);
-    setProductImages([]);
-  } catch (err: any) {
-    console.error('Erreur sauvegarde produit:', err);
-    setProductSaveError(err?.message || 'Impossible d\'enregistrer le produit. Réessaie.');
-  } finally {
-    setIsSavingProduct(false);
-  }
-};
 
   const handleCreateNewCollection = () => {
     setEditingCollection({
@@ -551,10 +440,14 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSettings(settingsForm);
-    alert('Paramètres de la marque mis à jour avec succès !');
+    try {
+      await saveSettingsToBackend(settingsForm);
+      alert('Paramètres de la marque mis à jour avec succès !');
+    } catch (error) {
+      alert('Erreur lors de la sauvegarde des paramètres.');
+    }
   };
 
   const handleSendNotification = async (e: React.FormEvent) => {
@@ -589,10 +482,69 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   });
 
   const newOrdersCount = orders.filter(o => o.status === 'NEW').length;
-  const confirmedOrdersCount = orders.filter(o => o.status === 'CONFIRMED' || o.status === 'PAID').length;
   const totalRevenue = orders
     .filter(o => o.status !== 'CANCELLED')
     .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
+  // Navigation groups
+  const navigationGroups: NavGroup[] = [
+    {
+      title: 'VUE D\'ENSEMBLE',
+      items: [
+        {
+          id: 'dashboard' as AdminTab,
+          label: 'Tableau de bord',
+          icon: LayoutDashboard,
+        },
+        {
+          id: 'orders' as AdminTab,
+          label: 'Commandes ',
+          icon: ShoppingBag,
+          badge: newOrdersCount > 0 ? `${newOrdersCount} NEW` : `${orders.length}`,
+          badgeColor: newOrdersCount > 0 ? 'bg-emerald-500 text-black font-black animate-pulse' : undefined
+        }
+      ]
+    },
+    {
+      title: 'CATALOGUE & STOCK',
+      items: [
+        {
+          id: 'products' as AdminTab,
+          label: 'Gestion Produits',
+          icon: Package,
+          badge: `${products.length}`
+        },
+        {
+          id: 'collections' as AdminTab,
+          label: 'Collections ',
+          icon: Layers,
+          badge: `${collections.length}`
+        }
+      ]
+    },
+    {
+      title: 'COMMUNICATION',
+      items: [
+        {
+          id: 'notifications' as AdminTab,
+          label: 'Notifications ',
+          icon: Bell,
+          badge: pushStatus.isSubscribed ? 'ACTIF' : 'CONFIG'
+        }
+      ]
+    },
+    {
+      title: 'CONFIGURATION',
+      items: [
+     
+        {
+          id: 'settings' as AdminTab,
+          label: 'Sécurité & Compte',
+          icon: Lock,
+        },
+      ]
+    }
+  ];
 
   // If not authenticated, render login screen
   if (!adminAuth.isAuthenticated) {
@@ -600,12 +552,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
       <div id="admin-login-screen" className="min-h-[85vh] flex items-center justify-center bg-[#050505] p-4 text-white">
         <div className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-8 sm:p-10 shadow-2xl flex flex-col gap-6">
           <div className="flex flex-col items-center text-center gap-3">
-<img
+            <img
               src="/assets/logo.png"
               alt="MARASSEURAVIE Logo"
               className="w-16 h-16 object-contain"
             />
-            <h1 className="font-display  text-xl uppercase tracking-widest text-white mt-2">
+            <h1 className="font-display text-xl uppercase tracking-widest text-white mt-2">
               PORTAIL PRIVÉ MARASSEURAVIE
             </h1>
             <p className="text-xs text-neutral-400 font-mono-brand">
@@ -650,7 +602,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
             <button
               id="admin-login-submit"
               type="submit"
-              className="mt-2 w-full bg-white text-black font-display  text-xs uppercase tracking-widest py-3.5 hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
+              className="mt-2 w-full bg-white text-black font-display text-xs uppercase tracking-widest py-3.5 hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>DÉVERROUILLER L'ACCÈS</span>
@@ -659,7 +611,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
           <div className="border-t border-neutral-900 pt-4 text-center">
             <span className="text-[10px] font-mono-brand text-neutral-500">
-              MARASSEURAVIE  • 2025 • SYSTÈME SÉCURISÉ
+              MARASSEURAVIE • 2025 • SYSTÈME SÉCURISÉ
             </span>
           </div>
         </div>
@@ -667,86 +619,21 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     );
   }
 
-  // Sidebar navigation menu items grouped logically
-  const navigationGroups: NavGroup[] = [
-    {
-      title: 'VUE D\'ENSEMBLE',
-      items: [
-        {
-          id: 'dashboard' as AdminTab,
-          label: 'Tableau de bord',
-          icon: LayoutDashboard,
-        },
-        {
-          id: 'orders' as AdminTab,
-          label: 'Commandes WhatsApp',
-          icon: ShoppingBag,
-          badge: newOrdersCount > 0 ? `${newOrdersCount} NEW` : `${orders.length}`,
-          badgeColor: newOrdersCount > 0 ? 'bg-emerald-500 text-black font-black animate-pulse' : undefined
-        }
-      ]
-    },
-    {
-      title: 'CATALOGUE & STOCK',
-      items: [
-        {
-          id: 'products' as AdminTab,
-          label: 'Gestion Produits',
-          icon: Package,
-          badge: `${products.length}`
-        },
-        {
-          id: 'collections' as AdminTab,
-          label: 'Collections & Capsules',
-          icon: Layers,
-          badge: `${collections.length}`
-        }
-      ]
-    },
-    {
-      title: 'COMMUNICATION',
-      items: [
-        {
-          id: 'notifications' as AdminTab,
-          label: 'Notifications Push',
-          icon: Bell,
-          badge: pushStatus.isSubscribed ? 'ACTIF' : 'CONFIG'
-        }
-      ]
-    },
-    {
-      title: 'CONFIGURATION',
-      items: [
-        {
-          id: 'homepage' as AdminTab,
-          label: 'Textes & Homepage',
-          icon: SettingsIcon
-        },
-        {
-          id: 'database' as AdminTab,
-          label: 'Base de données',
-          icon: Database
-        }
-      ]
-    }
-  ];
-
   return (
     <div id="admin-portal" className="min-h-screen bg-[#050505] text-white flex">
       
-      {/* 1. STANDARD SIDEBAR (Desktop Fixed / Mobile Drawer) */}
+      {/* Sidebar */}
       <aside
         id="admin-sidebar"
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0A0A0A] border-r border-neutral-900 flex flex-col justify-between transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Sidebar Header */}
         <div className="p-5 border-b border-neutral-900 flex items-center justify-between">
           <div className="flex items-center gap-3">
-<img src="/assets/logo.png" alt="Logo MARASSEURAVIE" className="w-8 h-8 object-cover rounded-sm" />
+            <img src="/assets/logo.png" alt="Logo MARASSEURAVIE" className="w-8 h-8 object-cover rounded-sm" />
             <div className="flex flex-col">
-              <span className="font-display  text-sm tracking-widest text-white uppercase">
+              <span className="font-display text-sm tracking-widest text-white uppercase">
                 MARASSEURAVIE
               </span>
               <span className="text-[9px] font-mono-brand text-neutral-400 tracking-wider">
@@ -764,7 +651,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
           </button>
         </div>
 
-        {/* Sidebar Navigation Items */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-none">
           {navigationGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-1.5">
@@ -812,7 +698,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
           ))}
         </div>
 
-        {/* Sidebar User & Logout Footer */}
         <div className="p-4 border-t border-neutral-900 bg-[#080808]">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
@@ -857,7 +742,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         />
       )}
 
-      {/* 2. MAIN DASHBOARD CONTENT AREA */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col lg:pl-64 min-h-screen">
         
         {/* Top Header Bar */}
@@ -879,9 +764,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
             </div>
           </div>
 
-          {/* Top Quick Actions */}
           <div className="flex items-center gap-3">
-            {/* Direct WhatsApp Concierge Shortcut */}
             <a
               href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, '')}`}
               target="_blank"
@@ -891,22 +774,18 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
               <MessageCircle className="w-3.5 h-3.5" />
               <span>WhatsApp Direct</span>
             </a>
-
-          
           </div>
         </header>
 
         {/* Dashboard Main Workspace */}
         <main className="flex-1 p-4 sm:p-8 lg:p-10 max-w-7xl w-full mx-auto">
           
-          {/* TAB 1: DASHBOARD OVERVIEW */}
+          {/* TAB 1: DASHBOARD */}
           {currentTab === 'dashboard' && (
             <div className="space-y-8">
-              
-              {/* Dashboard Welcome Row */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h1 className="font-display  text-3xl sm:text-4xl text-white uppercase tracking-tight">
+                  <h1 className="font-display text-3xl sm:text-4xl text-white uppercase tracking-tight">
                     TABLEAU DE BORD
                   </h1>
                   <p className="text-xs font-mono-brand text-neutral-400 mt-1">
@@ -917,7 +796,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCreateNewProduct}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-black font-display  text-xs uppercase tracking-wider rounded hover:bg-neutral-200 transition-colors shadow"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-black font-display text-xs uppercase tracking-wider rounded hover:bg-neutral-200 transition-colors shadow"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Nouveau Produit</span>
@@ -925,10 +804,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                 </div>
               </div>
 
-              {/* 4 Standard KPI Cards */}
+              {/* KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                
-                {/* KPI 1: Chiffre d'affaires */}
                 <div className="p-5 bg-[#0D0D0D] border border-neutral-800 rounded-sm flex flex-col justify-between gap-4">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-mono-brand uppercase tracking-widest text-neutral-400">
@@ -939,7 +816,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                     </div>
                   </div>
                   <div>
-                    <span className="font-display  text-2xl sm:text-3xl text-white">
+                    <span className="font-display text-2xl sm:text-3xl text-white">
                       {totalRevenue.toLocaleString('fr-FR')} {settings.currency}
                     </span>
                     <div className="flex items-center gap-1.5 text-[10px] font-mono-brand text-emerald-400 mt-1">
@@ -949,7 +826,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                   </div>
                 </div>
 
-                {/* KPI 2: Commandes en attente */}
                 <div
                   onClick={() => setCurrentTab('orders')}
                   className="p-5 bg-[#0D0D0D] border border-neutral-800 hover:border-emerald-500/60 rounded-sm flex flex-col justify-between gap-4 cursor-pointer transition-all group"
@@ -964,7 +840,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                   </div>
                   <div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-display  text-2xl sm:text-3xl text-white">
+                      <span className="font-display text-2xl sm:text-3xl text-white">
                         {newOrdersCount}
                       </span>
                       <span className="text-xs font-mono-brand text-neutral-400">
@@ -977,7 +853,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                   </div>
                 </div>
 
-                {/* KPI 3: Catalogue & Pièces */}
                 <div
                   onClick={() => setCurrentTab('products')}
                   className="p-5 bg-[#0D0D0D] border border-neutral-800 hover:border-neutral-600 rounded-sm flex flex-col justify-between gap-4 cursor-pointer transition-all"
@@ -991,7 +866,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                     </div>
                   </div>
                   <div>
-                    <span className="font-display  text-2xl sm:text-3xl text-white">
+                    <span className="font-display text-2xl sm:text-3xl text-white">
                       {products.length} Pièces
                     </span>
                     <span className="text-[10px] font-mono-brand text-neutral-400 mt-1 block">
@@ -1000,7 +875,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                   </div>
                 </div>
 
-                {/* KPI 4: Push Notifications & PWA */}
                 <div
                   onClick={() => setCurrentTab('notifications')}
                   className="p-5 bg-[#0D0D0D] border border-neutral-800 hover:border-neutral-600 rounded-sm flex flex-col justify-between gap-4 cursor-pointer transition-all"
@@ -1014,7 +888,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                     </div>
                   </div>
                   <div>
-                    <span className="font-display  text-2xl sm:text-3xl text-white">
+                    <span className="font-display text-2xl sm:text-3xl text-white">
                       {pushStatus.isSubscribed ? 'ACTIF' : 'CONFIG'}
                     </span>
                     <span className={`text-[10px] font-mono-brand mt-1 block ${pushStatus.isSubscribed ? 'text-emerald-400' : 'text-amber-400'}`}>
@@ -1022,8 +896,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
                     </span>
                   </div>
                 </div>
-
               </div>
+
 
               {/* Main 2-Column Section */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -1171,23 +1045,20 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
           {/* TAB 2: ORDERS MANAGEMENT */}
          {currentTab === 'orders' && (
-  <div className="space-y-4 md:space-y-6">
-    {/* Header */}
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-neutral-900 pb-3 sm:pb-4">
-      <div>
-        <h1 className="font-display text-2xl sm:text-3xl text-white uppercase tracking-tight flex items-center gap-2 sm:gap-3 flex-wrap">
-          <span>COMMANDES WHATSAPP</span>
-          <span className="text-xs font-mono-brand bg-white text-black px-2 py-0.5 font-bold rounded">
-            {orders.length}
-          </span>
-        </h1>
-        <p className="text-[10px] sm:text-xs text-neutral-400 font-mono-brand mt-1">
-          Enregistrées automatiquement avant la redirection WhatsApp avec identifiant unique
-        </p>
-      </div>
-
-      
-    </div>
+ <div className="space-y-4 md:space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-neutral-900 pb-3 sm:pb-4">
+                <div>
+                  <h1 className="font-display text-2xl sm:text-3xl text-white uppercase tracking-tight flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <span>COMMANDES WHATSAPP</span>
+                    <span className="text-xs font-mono-brand bg-white text-black px-2 py-0.5 font-bold rounded">
+                      {orders.length}
+                    </span>
+                  </h1>
+                  <p className="text-[10px] sm:text-xs text-neutral-400 font-mono-brand mt-1">
+                    Enregistrées automatiquement avant la redirection WhatsApp avec identifiant unique
+                  </p>
+                </div>
+              </div>
 
     {/* Status Filter Bar & Search */}
     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-stretch sm:items-center">
@@ -1234,6 +1105,10 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
         ) : (
           filteredOrders.map(order => {
             const isSelected = selectedOrder?.id === order.id;
+            function setSelectedOrder(order: Order): void {
+              throw new Error('Function not implemented.');
+            }
+
             return (
               <div
                 key={order.id}
@@ -1676,60 +1551,158 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
             </div>
           )}
 
-          {/* TAB 6: HOMEPAGE & SETTINGS */}
-          {currentTab === 'homepage' && (
+        
+{/* TAB 7: SETTINGS & SECURITY */}
+          {currentTab === 'settings' && (
             <div className="space-y-6">
               <div className="border-b border-neutral-900 pb-4">
-                <h1 className="font-display  text-3xl text-white uppercase tracking-tight">
-                  PARAMÈTRES & TEXTES DU SITE
+                <h1 className="font-display text-3xl text-white uppercase tracking-tight">
+                  SÉCURITÉ & COMPTE
                 </h1>
                 <p className="text-xs text-neutral-400 font-mono-brand mt-1">
-                  Modifiez les coordonnées WhatsApp, les annonces et le slogan de la marque
+                  Gérez votre mot de passe et les paramètres de sécurité
                 </p>
               </div>
 
-              <form onSubmit={handleSaveSettings} className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4 max-w-2xl">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono-brand uppercase text-neutral-400">Numéro WhatsApp de Commande</label>
-                  <input
-                    type="text"
-                    value={settingsForm.whatsappNumber}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, whatsappNumber: e.target.value })}
-                    className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                  />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Changement de mot de passe */}
+                <div className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
+                  <h3 className="font-display text-base text-white uppercase flex items-center gap-2">
+                    <Lock className="w-4 h-4" />
+                    CHANGER LE MOT DE PASSE
+                  </h3>
+                  <p className="text-xs text-neutral-400 font-mono-brand">
+                    Modifiez votre mot de passe de connexion à l'administration.
+                  </p>
+
+                  <form onSubmit={handleChangePassword} className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
+                        Mot de passe actuel
+                      </label>
+                      <input
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        required
+                        className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
+                        placeholder="••••••••"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
+                        Nouveau mot de passe
+                      </label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
+                        placeholder="Minimum 6 caractères"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
+                        Confirmer le nouveau mot de passe
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        required
+                        className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
+                        placeholder="••••••••"
+                      />
+                    </div>
+
+                    {passwordChangeError && (
+                      <div className="p-3 bg-red-950/50 border border-red-500/40 text-red-300 text-xs font-mono-brand">
+                        {passwordChangeError}
+                      </div>
+                    )}
+
+                    {passwordChangeSuccess && (
+                      <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-mono-brand flex items-center gap-2">
+                        <Check className="w-4 h-4" />
+                        {passwordChangeSuccess}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isChangingPassword}
+                      className="w-full py-3 bg-white text-black font-display text-xs uppercase tracking-widest rounded hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isChangingPassword && <RefreshCw className="w-4 h-4 animate-spin" />}
+                      <span>{isChangingPassword ? 'Changement en cours...' : 'CHANGER LE MOT DE PASSE'}</span>
+                    </button>
+                  </form>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono-brand uppercase text-neutral-400">Bandeau d'annonce (Haut de page)</label>
-                  <input
-                    type="text"
-                    value={settingsForm.announcement}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, announcement: e.target.value })}
-                    className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                  />
-                </div>
+                {/* Réinitialisation par email */}
+                <div className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
+                  <h3 className="font-display text-base text-white uppercase flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    RÉINITIALISATION PAR EMAIL
+                  </h3>
+                  <p className="text-xs text-neutral-400 font-mono-brand">
+                    Recevez un lien pour réinitialiser votre mot de passe par email.
+                  </p>
 
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-mono-brand uppercase text-neutral-400">Slogan de marque</label>
-                  <input
-                    type="text"
-                    value={settingsForm.tagline}
-                    onChange={(e) => setSettingsForm({ ...settingsForm, tagline: e.target.value })}
-                    className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
+                      Email associé au compte
+                    </label>
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
+                      placeholder="admin@marasseuravie.com"
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-white text-black font-display  text-xs uppercase tracking-widest rounded hover:bg-neutral-200 transition-colors"
-                >
-                  Enregistrer les modifications
-                </button>
-              </form>
+                  <button
+                    onClick={handleResetPassword}
+                    disabled={isResettingPassword}
+                    className="w-full py-3 bg-neutral-900 hover:bg-neutral-800 text-white font-display text-xs uppercase tracking-widest rounded transition-colors border border-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isResettingPassword && <RefreshCw className="w-4 h-4 animate-spin" />}
+                    <span>{isResettingPassword ? 'Envoi en cours...' : 'ENVOYER LE LIEN DE RÉINITIALISATION'}</span>
+                  </button>
+
+                  <div className="pt-4 border-t border-neutral-800">
+                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-mono-brand">
+                      <Info className="w-3 h-3" />
+                      <span>Le lien de réinitialisation expire après 1 heure.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informations du compte */}
+              <div className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm">
+                <h4 className="font-display text-sm text-white uppercase">INFORMATIONS DU COMPTE</h4>
+                <div className="mt-4 space-y-2 text-xs font-mono-brand">
+                  <div className="flex justify-between py-2 border-b border-neutral-800">
+                    <span className="text-neutral-400">Email connecté</span>
+                    <span className="text-white font-bold">{adminAuth.email || 'Non défini'}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-neutral-400">Statut</span>
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Connecté
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-
-        
 
         </main>
       </div>
@@ -1998,3 +1971,12 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
     </div>
   );
 };
+
+function setSelectedOrder(found: Order) {
+  throw new Error('Function not implemented.');
+}
+
+
+function setCurrentTab(arg0: string) {
+  throw new Error('Function not implemented.');
+}

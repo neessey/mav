@@ -17,7 +17,6 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
         {/* Editorial Top Headline */}
         <div className="flex flex-col items-center text-center gap-6 mb-16 sm:mb-24 border-b border-white/10 pb-16">
           <div className="flex items-center gap-2 text-xs font-mono-brand uppercase tracking-[0.4em] text-neutral-400">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
             <span>MANIFESTE & IDENTITÉ DE MARQUE</span>
           </div>
 
@@ -35,9 +34,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           
           {/* Left Column: Brand Emblem & Visual (6 cols) */}
           <div className="lg:col-span-6 flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0D0D0D] border border-white/15 relative">
-            <div className="absolute top-4 left-4 text-[10px] font-mono-brand uppercase text-neutral-500">
-              OFFICIAL EMBLEM • 2025
-            </div>
+          
 
             <img
               src="/assets/logo.png"

@@ -4,7 +4,9 @@ import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import webpush from 'web-push';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
+import { createHash } from 'crypto';
 
 // Initialize data storage directory
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -70,6 +72,7 @@ if (!vapidPublicKey || !vapidPrivateKey) {
 }
 
 webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+console.log(`🔐 Web Push VAPID ready: ${vapidPublicKey.slice(0, 12)}…`);
 
 // Optional Firebase Admin Initialization (Lazy & safe)
 let isFirebaseAdminReady = false;
@@ -90,6 +93,68 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
   } catch (err) {
     console.warn('Firebase Admin init warning:', err);
   }
+}
+
+
+// Firestore is used for push subscriptions in production so a server restart/redeploy
+// does not silently erase the devices that are subscribed to notifications.
+function subscriptionDocId(subscription?: webpush.PushSubscription, fcmToken?: string) {
+  const key = subscription?.endpoint || fcmToken || '';
+  return createHash('sha256').update(key).digest('hex');
+}
+
+async function getStoredSubscriptions(): Promise<StoredSubscription[]> {
+  if (isFirebaseAdminReady) {
+    try {
+      const snapshot = await getFirestore().collection('pushSubscriptions').get();
+      return snapshot.docs.map((d) => d.data() as StoredSubscription);
+    } catch (error) {
+      console.warn('Firestore push subscriptions read failed; using local store:', error);
+    }
+  }
+  return subscriptions;
+}
+
+async function upsertStoredSubscription(sub: StoredSubscription) {
+  if (isFirebaseAdminReady) {
+    try {
+      const id = subscriptionDocId(sub.subscription, sub.fcmToken);
+      await getFirestore().collection('pushSubscriptions').doc(id).set(
+        { ...sub, id, updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return;
+    } catch (error) {
+      console.warn('Firestore push subscription write failed; using local store:', error);
+    }
+  }
+
+  const endpointKey = sub.subscription?.endpoint || sub.fcmToken;
+  const existingIndex = subscriptions.findIndex(
+    (item) => (item.subscription?.endpoint || item.fcmToken) === endpointKey
+  );
+  if (existingIndex >= 0) subscriptions[existingIndex] = sub;
+  else subscriptions.push(sub);
+  saveJson(SUBSCRIPTIONS_FILE, subscriptions);
+}
+
+async function removeStoredSubscriptions(predicate: (sub: StoredSubscription) => boolean) {
+  if (isFirebaseAdminReady) {
+    try {
+      const snapshot = await getFirestore().collection('pushSubscriptions').get();
+      const batch = getFirestore().batch();
+      snapshot.docs.forEach((d) => {
+        if (predicate(d.data() as StoredSubscription)) batch.delete(d.ref);
+      });
+      await batch.commit();
+      return;
+    } catch (error) {
+      console.warn('Firestore push subscription delete failed; using local store:', error);
+    }
+  }
+
+  subscriptions = subscriptions.filter((sub) => !predicate(sub));
+  saveJson(SUBSCRIPTIONS_FILE, subscriptions);
 }
 
 // Push notification sender to all registered admin devices
@@ -131,17 +196,18 @@ async function sendNotificationToAdmins(payload: {
 
   const staleSubIds: string[] = [];
   let successfulSends = 0;
+  const activeSubscriptions = await getStoredSubscriptions();
 
-  // 1. Send via WebPush to all browser subscriptions
+  // 1. Send via Web Push to every subscribed admin device.
   await Promise.all(
-    subscriptions.map(async (sub) => {
-      if (sub.subscription && sub.subscription.endpoint) {
+    activeSubscriptions.map(async (sub) => {
+      if (sub.subscription?.endpoint) {
         try {
           await webpush.sendNotification(sub.subscription, payloadString);
           successfulSends++;
         } catch (err: any) {
           console.error('WebPush send error:', err?.statusCode || err?.message);
-          // Expired or unregistered subscriptions
+          // 404/410 means the browser subscription is no longer valid.
           if (err?.statusCode === 404 || err?.statusCode === 410) {
             staleSubIds.push(sub.id);
           }
@@ -151,7 +217,7 @@ async function sendNotificationToAdmins(payload: {
   );
 
   // 2. Send via Firebase Cloud Messaging if tokens exist and Firebase Admin is ready
-  const fcmTokens = subscriptions.filter((s) => s.fcmToken).map((s) => s.fcmToken as string);
+  const fcmTokens = activeSubscriptions.filter((s) => s.fcmToken).map((s) => s.fcmToken as string);
   if (isFirebaseAdminReady && fcmTokens.length > 0) {
     try {
       const response = await getMessaging().sendEachForMulticast({
@@ -171,10 +237,9 @@ async function sendNotificationToAdmins(payload: {
     }
   }
 
-  // Clean up stale subscriptions
+  // Clean up expired subscriptions in the same storage used for registration.
   if (staleSubIds.length > 0) {
-    subscriptions = subscriptions.filter((s) => !staleSubIds.includes(s.id));
-    saveJson(SUBSCRIPTIONS_FILE, subscriptions);
+    await removeStoredSubscriptions((sub) => staleSubIds.includes(sub.id));
   }
 
   notificationRecord.sentCount = successfulSends;
@@ -230,46 +295,44 @@ async function startServer() {
     res.json({ publicKey: vapidPublicKey });
   });
 
-  // Subscribe Admin Device to Push Notifications
-  app.post('/api/notifications/subscribe', (req, res) => {
-    const { subscription, fcmToken, userAgent } = req.body;
-    if (!subscription && !fcmToken) {
-      return res.status(400).json({ error: 'Subscription or FCM Token is required' });
+  // Subscribe the current admin PWA/device to real Web Push.
+  app.post('/api/notifications/subscribe', async (req, res) => {
+    try {
+      const { subscription, fcmToken, userAgent } = req.body;
+      if (!subscription && !fcmToken) {
+        return res.status(400).json({ error: 'Subscription or FCM Token is required' });
+      }
+
+      const subObject: StoredSubscription = {
+        id: subscriptionDocId(subscription, fcmToken),
+        subscription,
+        fcmToken,
+        createdAt: new Date().toISOString(),
+        userAgent: userAgent || req.headers['user-agent']
+      };
+
+      await upsertStoredSubscription(subObject);
+      const count = (await getStoredSubscriptions()).length;
+
+      console.log(`✅ Admin device subscribed to real Push. Total active subscribers: ${count}`);
+      res.json({ success: true, totalSubscribers: count });
+    } catch (error: any) {
+      console.error('Push subscription error:', error);
+      res.status(500).json({ success: false, error: error?.message || 'Unable to save push subscription' });
     }
-
-    const endpointKey = subscription?.endpoint || fcmToken;
-    const existingIndex = subscriptions.findIndex(
-      (s) => (s.subscription && s.subscription.endpoint === endpointKey) || s.fcmToken === endpointKey
-    );
-
-    const subObject: StoredSubscription = {
-      id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      subscription,
-      fcmToken,
-      createdAt: new Date().toISOString(),
-      userAgent: userAgent || req.headers['user-agent']
-    };
-
-    if (existingIndex >= 0) {
-      subscriptions[existingIndex] = subObject;
-    } else {
-      subscriptions.push(subObject);
-    }
-
-    saveJson(SUBSCRIPTIONS_FILE, subscriptions);
-    console.log(`✅ Admin device subscribed to Push. Total active subscribers: ${subscriptions.length}`);
-
-    res.json({ success: true, totalSubscribers: subscriptions.length });
   });
 
-  // Unsubscribe Device
-  app.post('/api/notifications/unsubscribe', (req, res) => {
-    const { endpoint, fcmToken } = req.body;
-    subscriptions = subscriptions.filter(
-      (s) => s.subscription?.endpoint !== endpoint && s.fcmToken !== fcmToken
-    );
-    saveJson(SUBSCRIPTIONS_FILE, subscriptions);
-    res.json({ success: true, totalSubscribers: subscriptions.length });
+  // Unsubscribe this browser/device.
+  app.post('/api/notifications/unsubscribe', async (req, res) => {
+    try {
+      const { endpoint, fcmToken } = req.body;
+      await removeStoredSubscriptions(
+        (sub) => sub.subscription?.endpoint === endpoint || sub.fcmToken === fcmToken
+      );
+      res.json({ success: true, totalSubscribers: (await getStoredSubscriptions()).length });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error?.message || 'Unable to unsubscribe' });
+    }
   });
 
   // Manual Push Broadcast from Admin
@@ -287,6 +350,23 @@ async function startServer() {
     });
 
     res.json(result);
+  });
+
+  // Triggered by the storefront after an order is successfully saved in Firestore.
+  // This keeps the notification system independent from the browser's Firestore rules.
+  app.post('/api/notifications/order', async (req, res) => {
+    try {
+      const order = req.body?.order;
+      if (!order?.id) {
+        return res.status(400).json({ success: false, error: 'Order is required' });
+      }
+
+      const result = await sendNewOrderNotification(order);
+      res.json(result);
+    } catch (error: any) {
+      console.error('New order push error:', error);
+      res.status(500).json({ success: false, error: error?.message || 'Push failed' });
+    }
   });
 
   // Test Push Notification trigger
