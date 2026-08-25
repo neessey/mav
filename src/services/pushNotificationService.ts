@@ -80,8 +80,14 @@ export const PushNotificationService = {
         return { success: false, message: 'Permission refusée par le navigateur.' };
       }
 
-      // 2. Ensure Service Worker is ready
-      const registration = await navigator.serviceWorker.ready;
+      // 2. Enregistrer puis récupérer le Service Worker
+const registration = await PushNotificationService.registerServiceWorker();
+
+if (!registration) {
+  throw new Error('Impossible d’enregistrer le Service Worker /sw.js');
+}
+
+await navigator.serviceWorker.ready;
 
       // 3. Fetch server VAPID key
       const keyRes = await fetch('/api/notifications/vapid-public-key');

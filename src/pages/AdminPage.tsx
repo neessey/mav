@@ -187,9 +187,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     const checkAndRegisterSW = async () => {
       if ('serviceWorker' in navigator) {
         try {
-          const registration = await navigator.serviceWorker.ready;
-          console.log('✅ Service Worker prêt:', registration);
-          setPushStatus(prev => ({ ...prev, isSupported: true }));
+          const registration =
+            await PushNotificationService.registerServiceWorker();
+
+          if (registration) {
+            console.log('✅ Service Worker prêt:', registration);
+            setPushStatus(prev => ({
+              ...prev,
+              isSupported: true
+            }));
+          }
         } catch (error) {
           console.warn('⚠️ Service Worker non disponible:', error);
           setPushStatus(prev => ({ ...prev, isSupported: false }));
