@@ -56,24 +56,6 @@ let vapidPublicKey = process.env.VAPID_PUBLIC_KEY || '';
 let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
 const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:contact@marasseuravie.com';
 
-if (!vapidPublicKey || !vapidPrivateKey) {
-  const vapidKeysFile = path.join(DATA_DIR, 'vapid.json');
-  const storedKeys = loadJson<{ publicKey: string; privateKey: string } | null>(vapidKeysFile, null);
-  if (storedKeys && storedKeys.publicKey && storedKeys.privateKey) {
-    vapidPublicKey = storedKeys.publicKey;
-    vapidPrivateKey = storedKeys.privateKey;
-  } else {
-    const generated = webpush.generateVAPIDKeys();
-    vapidPublicKey = generated.publicKey;
-    vapidPrivateKey = generated.privateKey;
-    saveJson(vapidKeysFile, generated);
-    console.log('✨ Generated persistent VAPID keys for Web Push');
-  }
-}
-
-webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-console.log(`🔐 Web Push VAPID ready: ${vapidPublicKey.slice(0, 12)}…`);
-
 // Optional Firebase Admin Initialization (Lazy & safe)
 let isFirebaseAdminReady = false;
 if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
@@ -95,6 +77,64 @@ if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && proc
   }
 }
 
+// Ensure the VAPID keypair is stable across restarts/redeploys.
+// BUG FIX: this used to fall back to a local data/vapid.json file only. On hosts where the
+// filesystem is wiped/rebuilt on every deploy (or when two different processes/cwd wrote two
+// different files, as happened with data/vapid.json vs public/data/vapid.json), the server would
+// silently generate a BRAND NEW keypair on each restart. Every browser that had already granted
+// push permission and subscribed against the OLD public key then became permanently invalid
+// against the new private key — webpush.sendNotification() fails with 401/403 (not 404/410), so
+// the old cleanup logic never removed them and pushes just failed forever.
+// Firestore is durable across redeploys (same store already used for push_subscriptions), so it
+// is now the source of truth when Firebase Admin is available; the local file is only a fallback
+// for local/dev use without Firebase configured.
+const vapidKeysFile = path.join(DATA_DIR, 'vapid.json');
+
+async function ensureVapidKeys() {
+  if (vapidPublicKey && vapidPrivateKey) {
+    console.log('🔐 Web Push VAPID keys loaded from environment variables (most stable option).');
+    return;
+  }
+
+  if (isFirebaseAdminReady) {
+    try {
+      const docRef = getFirestore().collection('systemConfig').doc('vapidKeys');
+      const doc = await docRef.get();
+      if (doc.exists) {
+        const data = doc.data() as { publicKey: string; privateKey: string };
+        if (data?.publicKey && data?.privateKey) {
+          vapidPublicKey = data.publicKey;
+          vapidPrivateKey = data.privateKey;
+          console.log('🔐 Web Push VAPID keys loaded from Firestore (stable across redeploys).');
+          return;
+        }
+      }
+      // Nothing in Firestore yet: generate once and persist so every future deploy reuses it.
+      const generated = webpush.generateVAPIDKeys();
+      await docRef.set({ ...generated, createdAt: new Date().toISOString() });
+      vapidPublicKey = generated.publicKey;
+      vapidPrivateKey = generated.privateKey;
+      console.log('✨ Generated new VAPID keys and persisted them to Firestore.');
+      return;
+    } catch (error) {
+      console.warn('Firestore VAPID key read/write failed; falling back to local file:', error);
+    }
+  }
+
+  // Fallback: local file only (not durable on ephemeral hosts — set VAPID_PUBLIC_KEY /
+  // VAPID_PRIVATE_KEY env vars, or configure Firebase Admin, for a production-safe setup).
+  const storedKeys = loadJson<{ publicKey: string; privateKey: string } | null>(vapidKeysFile, null);
+  if (storedKeys && storedKeys.publicKey && storedKeys.privateKey) {
+    vapidPublicKey = storedKeys.publicKey;
+    vapidPrivateKey = storedKeys.privateKey;
+  } else {
+    const generated = webpush.generateVAPIDKeys();
+    vapidPublicKey = generated.publicKey;
+    vapidPrivateKey = generated.privateKey;
+    saveJson(vapidKeysFile, generated);
+    console.log('✨ Generated local-only VAPID keys (data/vapid.json) — not durable on ephemeral hosts.');
+  }
+}
 
 // Firestore is used for push subscriptions in production so a server restart/redeploy
 // does not silently erase the devices that are subscribed to notifications.
@@ -208,7 +248,10 @@ async function sendNotificationToAdmins(payload: {
         } catch (err: any) {
           console.error('WebPush send error:', err?.statusCode || err?.message);
           // 404/410 means the browser subscription is no longer valid.
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
+          // 404/410 = subscription gone. 401/403 = VAPID key mismatch (e.g. this device
+          // subscribed under a keypair that no longer matches the server's current one).
+          // Treat both as stale so the admin gets a clean slate and knows to resubscribe.
+          if ([401, 403, 404, 410].includes(err?.statusCode)) {
             staleSubIds.push(sub.id);
           }
         }
@@ -272,6 +315,10 @@ export async function sendNewOrderNotification(order: any) {
 
 // Express Server Assembly
 async function startServer() {
+  await ensureVapidKeys();
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  console.log(`🔐 Web Push VAPID ready: ${vapidPublicKey.slice(0, 12)}…`);
+
   const app = express();
   const PORT = 3000;
 
