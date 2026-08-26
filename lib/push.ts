@@ -12,25 +12,62 @@ export interface StoredSubscription {
   userAgent?: string;
 }
 
-function getVapidKeys() {
-  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  const subject = process.env.VAPID_SUBJECT?.trim() || 'mailto:contact@marasseuravie.com';
+const vapidSubject = process.env.VAPID_SUBJECT?.trim() || 'mailto:contact@marasseuravie.com';
 
-  if (!publicKey || !privateKey) {
-    throw new Error('VAPID is not configured. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Vercel.');
+// Module-level cache: survives across invocations on a warm serverless instance, so a cold
+// start only costs one Firestore read/write and every warm request after that is instant.
+let cachedVapidKeys: { publicKey: string; privateKey: string } | null = null;
+let inFlightVapidKeys: Promise<{ publicKey: string; privateKey: string }> | null = null;
+
+// Stable VAPID keypair, regardless of environment.
+// 1. VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY env vars, if set (explicit override).
+// 2. Otherwise Firestore (systemConfig/vapidKeys) — generated once, then reused forever.
+//    This is required on Vercel: serverless functions have no persistent/writable local
+//    filesystem between invocations, so a keypair that lived only in a local file would be
+//    regenerated (or simply missing) on every cold start, silently breaking every existing
+//    push subscription (webpush.sendNotification then fails with 401/403).
+async function getVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {
+  const envPublicKey = process.env.VAPID_PUBLIC_KEY?.trim();
+  const envPrivateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  if (envPublicKey && envPrivateKey) {
+    return { publicKey: envPublicKey, privateKey: envPrivateKey };
   }
 
-  return { publicKey, privateKey, subject };
+  if (cachedVapidKeys) return cachedVapidKeys;
+  if (inFlightVapidKeys) return inFlightVapidKeys;
+
+  inFlightVapidKeys = (async () => {
+    const db = getAdminDb();
+    const docRef = db.collection('systemConfig').doc('vapidKeys');
+    const doc = await docRef.get();
+    if (doc.exists) {
+      const data = doc.data() as { publicKey: string; privateKey: string };
+      if (data?.publicKey && data?.privateKey) {
+        cachedVapidKeys = { publicKey: data.publicKey, privateKey: data.privateKey };
+        return cachedVapidKeys;
+      }
+    }
+    // Nothing stored yet: generate once and persist so every future invocation/deploy reuses it.
+    const generated = webpush.generateVAPIDKeys();
+    await docRef.set({ ...generated, createdAt: new Date().toISOString() });
+    cachedVapidKeys = generated;
+    return generated;
+  })();
+
+  try {
+    return await inFlightVapidKeys;
+  } finally {
+    inFlightVapidKeys = null;
+  }
 }
 
-export function getVapidPublicKey() {
-  return getVapidKeys().publicKey;
+export async function getVapidPublicKey() {
+  return (await getVapidKeys()).publicKey;
 }
 
-function configureWebPush() {
-  const { publicKey, privateKey, subject } = getVapidKeys();
-  webpush.setVapidDetails(subject, publicKey, privateKey);
+async function configureWebPush() {
+  const { publicKey, privateKey } = await getVapidKeys();
+  webpush.setVapidDetails(vapidSubject, publicKey, privateKey);
 }
 
 export function subscriptionId(subscription?: webpush.PushSubscription, fcmToken?: string) {
@@ -104,7 +141,7 @@ export async function sendNotificationToAdmins(payload: {
   actionUrl?: string;
   data?: Record<string, unknown>;
 }) {
-  configureWebPush();
+  await configureWebPush();
 
   const actionUrl = payload.actionUrl || '/admin';
   const pushPayload = JSON.stringify({
@@ -134,7 +171,9 @@ export async function sendNotificationToAdmins(payload: {
       } catch (error: any) {
         const status = Number(error?.statusCode);
         console.error('Web Push error:', status || '', error?.body || error?.message || error);
-        if (status === 404 || status === 410) staleRefs.push(docRef);
+        // 404/410 = subscription gone. 401/403 = this subscription was created against a VAPID
+        // key that no longer matches the current one — also unrecoverable, clean it up too.
+        if ([401, 403, 404, 410].includes(status)) staleRefs.push(docRef);
       }
     }),
   );
