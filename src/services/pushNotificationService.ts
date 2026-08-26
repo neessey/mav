@@ -1,163 +1,163 @@
-// Push Notification and Order Service for MARASSEURAVIE PWA
+// Real Web Push client for MARASSEURAVIE.
+// Important for iPhone/iPad: on iOS 16.4+, Web Push is supported for a Home Screen web app.
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
+function normalizeVapidKey(value: string): string {
+  return value.trim().replace(/^['"]|['"]$/g, '').replace(/\s+/g, '');
+}
+
+function isIOS(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandalone(): boolean {
+  return window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 
 export const PushNotificationService = {
-  // Check if Push is supported in this browser
   isSupported: (): boolean => {
     return (
       typeof window !== 'undefined' &&
       'serviceWorker' in navigator &&
       'PushManager' in window &&
-      'Notification' in window
+      'Notification' in window &&
+      window.isSecureContext
     );
   },
 
-  // Register main Service Worker
   registerServiceWorker: async (): Promise<ServiceWorkerRegistration | null> => {
     if (!('serviceWorker' in navigator)) return null;
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-      console.log('🚀 Service Worker registered successfully:', reg.scope);
-      return reg;
-    } catch (err) {
-      console.error('Service Worker registration failed:', err);
+      const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+      return registration;
+    } catch (error) {
+      console.error('Service Worker registration failed:', error);
       return null;
     }
   },
 
-  // Get current subscription status
-  getSubscriptionStatus: async (): Promise<{
-    isSupported: boolean;
-    permission: NotificationPermission;
-    isSubscribed: boolean;
-  }> => {
+  getSubscriptionStatus: async () => {
     if (!PushNotificationService.isSupported()) {
-      return {
-        isSupported: false,
-        permission: 'denied',
-        isSubscribed: false
-      };
+      return { isSupported: false, permission: 'denied' as NotificationPermission, isSubscribed: false };
     }
 
-    const permission = Notification.permission;
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
       return {
         isSupported: true,
-        permission,
-        isSubscribed: !!sub
+        permission: Notification.permission,
+        isSubscribed: !!subscription,
       };
     } catch {
       return {
         isSupported: true,
-        permission,
-        isSubscribed: false
+        permission: Notification.permission,
+        isSubscribed: false,
       };
     }
   },
 
-  // Subscribe Admin device to real Web Push / FCM
   subscribeAdminDevice: async (): Promise<{ success: boolean; message: string }> => {
     if (!PushNotificationService.isSupported()) {
-      return { success: false, message: 'Les notifications Push ne sont pas supportées sur ce navigateur.' };
+      return { success: false, message: 'Les notifications Push ne sont pas supportées par ce navigateur.' };
+    }
+
+    if (isIOS() && !isStandalone()) {
+      return {
+        success: false,
+        message: "Sur iPhone/iPad, ajoute MARASSEURAVIE à l'écran d'accueil puis ouvre l'application depuis son icône pour activer les notifications.",
+      };
     }
 
     try {
-      // 1. Request permission
+      // Ask for permission directly from the Admin button click. Safari requires
+      // notification permission / subscription flows to originate from a user gesture.
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        return { success: false, message: 'Permission refusée par le navigateur.' };
+        return { success: false, message: 'Permission de notification refusée.' };
       }
 
-      // 2. Enregistrer puis récupérer le Service Worker
-const registration = await PushNotificationService.registerServiceWorker();
+      const registration = await PushNotificationService.registerServiceWorker();
+      if (!registration) throw new Error('Impossible d’enregistrer le Service Worker.');
 
-if (!registration) {
-  throw new Error('Impossible d’enregistrer le Service Worker /sw.js');
-}
-
-await navigator.serviceWorker.ready;
-
-      // 3. Fetch server VAPID key
-      const keyRes = await fetch('/api/notifications/vapid-public-key');
-      const { publicKey } = await keyRes.json();
-
-      if (!publicKey) {
-        throw new Error('Clé VAPID publique introuvable');
+      const keyResponse = await fetch('/api/notifications/vapid-public-key', { cache: 'no-store' });
+      const keyData = await keyResponse.json();
+      if (!keyResponse.ok || !keyData.publicKey) {
+        throw new Error(keyData.error || 'Clé VAPID publique introuvable sur le serveur.');
       }
 
-      // 4. Subscribe to Push Manager
-      const applicationServerKey = urlBase64ToUint8Array(publicKey);
+      // Safari accepts the standard Base64URL VAPID string directly. Using the
+      // original string avoids the iOS "The string did not match the expected pattern"
+      // error caused by malformed/incorrectly transformed keys.
+      const publicKey = normalizeVapidKey(keyData.publicKey);
+      if (!/^[-_A-Za-z0-9]+$/.test(publicKey)) {
+        throw new Error('La clé VAPID publique reçue est invalide.');
+      }
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: applicationServerKey as any
+        applicationServerKey: publicKey,
       });
 
-      // 5. Send subscription payload to backend
-      const res = await fetch('/api/notifications/subscribe', {
+      const saveResponse = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subscription: subscription.toJSON(),
-          userAgent: navigator.userAgent
-        })
+          userAgent: navigator.userAgent,
+        }),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        return { success: true, message: 'Appareil connecté aux notifications push réelles !' };
-      } else {
-        return { success: false, message: data.error || 'Erreur lors de la synchronisation serveur.' };
+      const result = await saveResponse.json();
+      if (!saveResponse.ok || !result.success) {
+        throw new Error(result.error || 'Le serveur n’a pas enregistré cet appareil.');
       }
-    } catch (err: any) {
-      console.error('Push subscription failed:', err);
-      return { success: false, message: err.message || 'Échec de l’abonnement aux notifications.' };
+
+      return { success: true, message: 'Cet appareil reçoit maintenant les notifications push réelles.' };
+    } catch (error: any) {
+      console.error('Push subscription failed:', error);
+      return { success: false, message: error?.message || 'Échec de l’abonnement aux notifications.' };
     }
   },
 
-  // Unsubscribe
   unsubscribeAdminDevice: async (): Promise<boolean> => {
     try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
-        await sub.unsubscribe();
-        await fetch('/api/notifications/unsubscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: sub.endpoint })
-        });
-      }
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (!subscription) return true;
+
+      const endpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      await fetch('/api/notifications/unsubscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
       return true;
-    } catch {
+    } catch (error) {
+      console.error('Push unsubscribe failed:', error);
       return false;
     }
   },
 
-  // Trigger test notification
   sendTestNotification: async () => {
-    const res = await fetch('/api/notifications/test', { method: 'POST' });
-    return await res.json();
+    const response = await fetch('/api/notifications/test', { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Le test push a échoué.');
+    return data;
   },
 
-  // Broadcast push message from Admin
   sendBroadcast: async (title: string, message: string, imageUrl?: string, actionUrl?: string) => {
-    const res = await fetch('/api/notifications/send', {
+    const response = await fetch('/api/notifications/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, message, imageUrl, actionUrl })
+      body: JSON.stringify({ title, message, imageUrl, actionUrl }),
     });
-    return await res.json();
-  }
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'L’envoi du push a échoué.');
+    return data;
+  },
 };
