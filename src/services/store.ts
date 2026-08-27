@@ -238,7 +238,10 @@ createOrder: async (orderData: { items: any; totalAmount: any; customerName: any
   const fallbackId = `MAV-${new Date().getFullYear()}-${randomSuffix}`;
 
   const order = {
-    id: fallbackId,
+    // BUG FIX: this used to be stored as `id`, which collided with the real Firestore
+    // document ID. Firestore's auto-generated doc ID is always the single source of truth
+    // for `order.id` from now on — this human-friendly code is a display-only reference.
+    orderNumber: fallbackId,
     items: orderData.items,
     totalAmount: orderData.totalAmount,
     status: 'NEW' as const,

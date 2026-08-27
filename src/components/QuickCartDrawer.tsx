@@ -66,7 +66,7 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
       });
 
       // 2. Format customized WhatsApp URL with order reference
-      const { url } = formatWhatsAppCartCheckoutUrl(cart, customerName, deliveryCity, order.id);
+      const { url } = formatWhatsAppCartCheckoutUrl(cart, customerName, deliveryCity, order.orderNumber || order.id);
 
       // 3. Open WhatsApp
       window.open(url, '_blank', 'noopener,noreferrer');

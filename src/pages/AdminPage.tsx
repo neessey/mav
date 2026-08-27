@@ -482,6 +482,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     const matchesStatus = orderStatusFilter === 'ALL' || order.status === orderStatusFilter;
     const matchesSearch =
       order.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+      (order.orderNumber && order.orderNumber.toLowerCase().includes(orderSearchQuery.toLowerCase())) ||
       (order.customerName && order.customerName.toLowerCase().includes(orderSearchQuery.toLowerCase())) ||
       (order.customerPhone && order.customerPhone.includes(orderSearchQuery)) ||
       (order.customerCity && order.customerCity.toLowerCase().includes(orderSearchQuery.toLowerCase()));
@@ -947,7 +948,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-mono-brand font-black text-sm text-white">
-                                {order.id}
+                                {order.orderNumber || order.id}
                               </span>
                               <span
                                 className={`text-[9px] font-mono-brand uppercase px-2 py-0.5 rounded font-bold ${
@@ -1112,9 +1113,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
         ) : (
           filteredOrders.map(order => {
             const isSelected = selectedOrder?.id === order.id;
-            function setSelectedOrder(order: Order): void {
-              throw new Error('Function not implemented.');
-            }
 
             return (
               <div
@@ -1130,7 +1128,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <span className="font-mono-brand font-black text-xs sm:text-sm text-white break-all">
-                      {order.id}
+                      {order.orderNumber || order.id}
                     </span>
                     <span
                       className={`text-[8px] sm:text-[9px] font-mono-brand uppercase px-1.5 sm:px-2 py-0.5 rounded font-bold ${
@@ -1978,12 +1976,3 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     </div>
   );
 };
-
-function setSelectedOrder(found: Order) {
-  throw new Error('Function not implemented.');
-}
-
-
-function setCurrentTab(arg0: string) {
-  throw new Error('Function not implemented.');
-}

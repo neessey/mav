@@ -113,7 +113,8 @@ export interface OrderItem {
 }
 
 export interface Order {
-  id: string; // e.g. MAV-2025-0842
+  id: string; // real Firestore document ID — use for lookups, deletes, and React keys
+  orderNumber?: string; // human-friendly display code, e.g. MAV-2025-0842 (not unique/queryable)
   items: OrderItem[];
   totalAmount: number;
   status: OrderStatus;

@@ -241,8 +241,14 @@ export const FirebaseService = {
   createOrder: async (order: any) => {
     const ordersRef = collection(db, 'orders');
     const now = new Date().toISOString();
+    // BUG FIX: never let a caller-supplied `id` field end up inside the document data —
+    // it collides with the real Firestore document ID (docRef.id) and, once read back via
+    // getOrders(), silently overrides it. That mismatch is why deleteOrder() looked like it
+    // worked (no error) but actually targeted a document ID that didn't exist, so the order
+    // reappeared after reload. Firestore's own doc ID is the only `id` that's ever saved now.
+    const { id: _ignoredClientId, ...orderFields } = order;
     const orderToSave = {
-      ...order,
+      ...orderFields,
       createdAt: now,
       updatedAt: now,
     };
@@ -257,9 +263,11 @@ export const FirebaseService = {
     const ordersRef = collection(db, 'orders');
     const q = query(ordersRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);
+    // `id: item.id` spread LAST so the real Firestore document ID always wins, even for
+    // any older documents that still have a stray `id` field saved in their data.
     return snapshot.docs.map((item: any) => ({
-      id: item.id,
       ...item.data(),
+      id: item.id,
     }));
   },
 
