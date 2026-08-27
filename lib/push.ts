@@ -1,6 +1,6 @@
 import webpush from 'web-push';
 import { createHash } from 'node:crypto';
-import { getAdminDb } from './firebaseAdmin';
+import { getAdminDb } from './firebaseAdmin.js';
 import type { DocumentReference } from 'firebase-admin/firestore';
 
 export interface StoredSubscription {

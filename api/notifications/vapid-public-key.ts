@@ -1,4 +1,4 @@
-import { getVapidPublicKey } from '../../lib/push';
+import { getVapidPublicKey } from '../../lib/push.js';
 
 export default async function handler(_req: any, res: any) {
   try {
