@@ -270,9 +270,6 @@ createOrder: async (orderData: { items: any; totalAmount: any; customerName: any
 
       if (!response.ok) {
         console.warn('⚠️ Commande enregistrée, mais notification push non envoyée:', response.status);
-      } else {
-        const pushResult = await response.json();
-        console.log('📲 Notification nouvelle commande:', pushResult);
       }
     } catch (pushError) {
       console.warn('⚠️ Commande enregistrée, serveur push indisponible:', pushError);

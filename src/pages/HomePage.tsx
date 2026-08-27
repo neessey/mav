@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { PageView } from '../types';
 import { useStore } from '../services/store';
@@ -194,8 +193,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="grid min-h-[700px] lg:grid-cols-2">
           {/* Image */}
           <div className="relative min-h-[500px] overflow-hidden lg:min-h-[700px]">
-            <img
-              src={campaign.coverImage}
+            <img loading="lazy"              src={campaign.coverImage}
               alt="MARASSEURAVIE Campaign"
               referrerPolicy="no-referrer"
               className="h-full w-full object-cover object-center transition-transform duration-[1.5s] hover:scale-[1.03]"

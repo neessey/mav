@@ -44,8 +44,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onNavigate }) 
               >
                 {/* Large Editorial Card Image */}
                 <div className="relative aspect-[16/10] sm:aspect-[16/9] bg-black overflow-hidden">
-                  <img
-                    src={collection.image}
+                  <img loading="lazy"                    src={collection.image}
                     alt={collection.name}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover filter brightness-85 group-hover:scale-105 group-hover:brightness-100 transition-all duration-700"

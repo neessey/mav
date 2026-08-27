@@ -36,8 +36,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <div className="lg:col-span-6 flex flex-col items-center justify-center p-8 sm:p-16 bg-[#0D0D0D] border border-white/15 relative">
           
 
-            <img
-              src="/assets/logo.png"
+            <img loading="lazy"              src="/assets/logo.png"
               alt="MARASSEURAVIE Logo"
               className="w-64 h-64 object-contain"
             />
@@ -86,8 +85,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
 
         {/* Full Bleed Campaign Visual */}
         <div className="relative aspect-[16/9] sm:aspect-[21/9] bg-neutral-900 border border-white/15 overflow-hidden mb-24">
-          <img
-            src={campaign.coverImage}
+          <img loading="lazy"            src={campaign.coverImage}
             alt="MARASSEURAVIE Editorial Campaign"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover filter brightness-85"

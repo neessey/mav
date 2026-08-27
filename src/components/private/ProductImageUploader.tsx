@@ -237,8 +237,7 @@ export const ProductImageUploader: React.FC<
               key={`${image.publicId}-${index}`}
               className="group relative aspect-[4/5] overflow-hidden border border-neutral-800 bg-black"
             >
-              <img
-                src={image.url}
+              <img loading="lazy"                src={image.url}
                 alt={`Produit ${index + 1}`}
                 className="h-full w-full object-cover"
               />
@@ -316,8 +315,7 @@ export const ProductImageUploader: React.FC<
                 key={item.preview}
                 className="relative aspect-[4/5] overflow-hidden border border-amber-500/30"
               >
-                <img
-                  src={item.preview}
+                <img loading="lazy"                  src={item.preview}
                   alt={item.file.name}
                   className="h-full w-full object-cover"
                 />

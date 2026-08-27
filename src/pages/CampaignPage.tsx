@@ -346,8 +346,7 @@ export const CampaignPage: React.FC<CampaignPageProps> = ({
             }
           >
 
-            <img
-              src={activeShot.url}
+            <img loading="lazy"              src={activeShot.url}
               alt={
                 activeShot.title ||
                 'MARASSEURAVIE campaign'
@@ -447,8 +446,7 @@ const CampaignShot: React.FC<
         className={`relative block w-full cursor-pointer overflow-hidden border border-white/10 bg-neutral-900 text-left ${aspectClass}`}
       >
 
-        <img
-          src={shot.url}
+        <img          src={shot.url}
           alt={
             shot.title ||
             `MARASSEURAVIE Lookbook ${index + 1}`

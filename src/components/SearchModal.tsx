@@ -122,8 +122,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-14 bg-neutral-900 overflow-hidden border border-white/10 shrink-0">
-                    <img
-                      src={product.images[0]}
+                    <img loading="lazy"                      src={product.images[0]}
                       alt={product.name}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform"

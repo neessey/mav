@@ -191,7 +191,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
             await PushNotificationService.registerServiceWorker();
 
           if (registration) {
-            console.log('✅ Service Worker prêt:', registration);
             setPushStatus(prev => ({
               ...prev,
               isSupported: true
@@ -327,13 +326,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
 
       const status = await PushNotificationService.getSubscriptionStatus();
       setPushStatus(status);
-      setPushFeedback('✅ Notifications push  activées sur cet appareil.');
+      setPushFeedback('✅ Notifications push réelles activées sur cet appareil.');
 
       // Verify the complete chain by asking the server to send a real push.
       try {
         const testResult = await PushNotificationService.sendTestNotification();
         if (testResult?.success && Number(testResult.sentCount) > 0) {
-          setPushFeedback('✅ Notifications push activées et test envoyé.');
+          setPushFeedback('✅ Notifications push activées et test réel envoyé.');
         } else {
           setPushFeedback('⚠️ Abonnement activé, mais le serveur n’a trouvé aucun appareil à notifier.');
         }
@@ -560,8 +559,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
       <div id="admin-login-screen" className="min-h-[85vh] flex items-center justify-center bg-[#050505] p-4 text-white">
         <div className="w-full max-w-md bg-[#0D0D0D] border border-white/20 p-8 sm:p-10 shadow-2xl flex flex-col gap-6">
           <div className="flex flex-col items-center text-center gap-3">
-            <img
-              src="/assets/logo.png"
+            <img loading="lazy"              src="/assets/logo.png"
               alt="MARASSEURAVIE Logo"
               className="w-16 h-16 object-contain"
             />
@@ -938,8 +936,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                         <div className="flex items-center gap-3.5">
                           <div className="w-12 h-14 bg-black border border-neutral-800 shrink-0 overflow-hidden rounded-xs">
                             {order.items[0]?.image && (
-                              <img
-                                src={order.items[0].image}
+                              <img loading="lazy"                                src={order.items[0].image}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />
@@ -1153,8 +1150,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                 <div className="flex items-center gap-2 sm:gap-3">
                   <div className="w-10 h-12 sm:w-12 sm:h-14 bg-black border border-neutral-800 shrink-0 overflow-hidden rounded-xs">
                     {order.items[0]?.image && (
-                      <img
-                        src={order.items[0].image}
+                      <img loading="lazy"                        src={order.items[0].image}
                         alt=""
                         className="w-full h-full object-cover"
                       />
@@ -1214,7 +1210,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                 <div key={idx} className="flex items-center justify-between p-2 sm:p-3 bg-black border border-neutral-800 gap-2">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     {item.image && (
-                      <img src={item.image} alt="" className="w-8 h-10 sm:w-10 sm:h-12 object-cover border border-neutral-800 shrink-0" />
+                      <img loading="lazy" src={item.image} alt="" className="w-8 h-10 sm:w-10 sm:h-12 object-cover border border-neutral-800 shrink-0" />
                     )}
                     <div className="min-w-0">
                       <span className="font-bold text-[10px] sm:text-xs text-white block uppercase truncate">{item.name}</span>
@@ -1327,7 +1323,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                   <div key={p.id} className="p-4 bg-[#0D0D0D] border border-neutral-800 flex flex-col justify-between gap-4 rounded-sm">
                     <div className="flex gap-4">
                       <div className="w-20 h-24 bg-black border border-neutral-800 shrink-0 overflow-hidden">
-                        <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
+                        <img loading="lazy" src={p.images[0]} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex flex-col">
                         <div className="flex items-center gap-1.5">
@@ -1420,7 +1416,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                 {collections.map(col => (
                   <div key={col.id} className="p-4 bg-[#0D0D0D] border border-neutral-800 flex flex-col justify-between gap-4 rounded-sm">
                     <div className="aspect-[16/9] bg-black border border-neutral-800 overflow-hidden">
-                      <img src={col.image} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" src={col.image} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div>
                       <span className="text-[10px] font-mono-brand uppercase text-neutral-400">{col.season}</span>

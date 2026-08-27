@@ -36,6 +36,12 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
     if (cart.length === 0) return;
     setIsSubmitting(true);
 
+    // BUG FIX (mobile Safari/Chrome): see ProductDetailPage.tsx processOrder() for the
+    // full explanation — window.open() after an `await` gets silently blocked on iOS and
+    // shown as a blocked-popup banner on Android. Opening the tab synchronously here,
+    // before any await, keeps the click's "user activation" so the redirect below works.
+    const whatsappWindow = window.open('about:blank', '_blank');
+
     confetti({
       particleCount: 70,
       spread: 70,
@@ -68,14 +74,23 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
       // 2. Format customized WhatsApp URL with order reference
       const { url } = formatWhatsAppCartCheckoutUrl(cart, customerName, deliveryCity, order.orderNumber || order.id);
 
-      // 3. Open WhatsApp
-      window.open(url, '_blank', 'noopener,noreferrer');
+      // 3. Redirect the pre-opened tab to WhatsApp (fallback to same-tab navigation if
+      // the pre-open itself failed, e.g. popups fully disabled by the user).
+      if (whatsappWindow) {
+        whatsappWindow.location.href = url;
+      } else {
+        window.location.assign(url);
+      }
       clearCart();
       onClose();
     } catch (e) {
       console.error('Cart order creation error:', e);
       const { url } = formatWhatsAppCartCheckoutUrl(cart, customerName, deliveryCity);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (whatsappWindow) {
+        whatsappWindow.location.href = url;
+      } else {
+        window.location.assign(url);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -139,8 +154,7 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
                     }}
                     className="w-16 h-20 bg-neutral-900 shrink-0 border border-white/10 cursor-pointer overflow-hidden"
                   >
-                    <img
-                      src={item.product.images[0]}
+                    <img loading="lazy"                      src={item.product.images[0]}
                       alt={item.product.name}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"

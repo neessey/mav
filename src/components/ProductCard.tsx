@@ -38,8 +38,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     >
       {/* Image Container */}
       <div className="relative w-full aspect-[3/4] bg-[#0A0A0A] overflow-hidden">
-        <img
-          src={isHovered && hoverImage !== mainImage ? hoverImage : mainImage}
+        <img          src={isHovered && hoverImage !== mainImage ? hoverImage : mainImage}
           alt={product.name}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"

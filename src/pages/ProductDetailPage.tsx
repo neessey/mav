@@ -148,6 +148,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   };
 
   const processOrder = async (method: PaymentMethod) => {
+    // BUG FIX (mobile Safari/Chrome): window.open() called after an `await` loses the
+    // "user activation" the click gave us, so mobile browsers silently block it (iOS) or
+    // show a "popup blocked" banner requiring manual approval (Android). Opening a blank
+    // tab HERE — synchronously, still inside the click — keeps that activation. We just
+    // redirect this already-open tab to the real WhatsApp URL once it's ready below.
+    const whatsappWindow = method === 'cod' ? window.open('about:blank', '_blank') : null;
+
     setProcessingMethod(method);
     setIsOrdering(true);
     setIsSubmittingDelivery(true);
@@ -220,11 +227,18 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
         );
         window.location.assign(WAVE_MERCHANT_LINK);
       } else {
-        window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+        if (whatsappWindow) {
+          whatsappWindow.location.href = whatsappUrl;
+        } else {
+          // Fallback: the pre-opened tab failed (rare) — navigate the current tab instead
+          // of doing nothing, so the customer's order isn't left dangling.
+          window.location.assign(whatsappUrl);
+        }
         resetDeliveryForm();
       }
 
     } catch (err) {
+      if (whatsappWindow) whatsappWindow.close();
       console.error('Order creation error:', err);
       alert('Une erreur est survenue lors de la création de la commande. Veuillez réessayer.');
     } finally {
@@ -301,8 +315,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                         : 'border-neutral-800 opacity-60 hover:opacity-100 hover:border-neutral-600'
                     }`}
                   >
-                    <img
-                      src={img}
+                    <img loading="lazy"                      src={img}
                       alt={`Miniature ${idx + 1}`}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
@@ -446,7 +459,6 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                   <button
                     onClick={() => {
                       setShowDeliveryForm(true);
-                      console.log('🟢 Ouverture du formulaire de livraison');
                     }}
                     disabled={isOrdering}
                     className="w-full bg-white text-black font-display text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
