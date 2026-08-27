@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // An authenticated user counts as admin only if their (lowercased) email has a
+    // matching document in adminUsers. Docs in that collection must be keyed by email
+    // (see step 2) for this exists() check to work.
+    function isAdmin() {
+      return request.auth != null &&
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/adminUsers/$(request.auth.token.email.lower()));
+    }
+
+    // Admin whitelist. Read stays public because the app checks eligibility BEFORE
+    // sign-in (checkAdminEmail in firebaseConfig.ts runs pre-auth). Write is NEVER
+    // allowed from the client: add/remove admins only via Firebase Console or the
+    // Admin SDK. This closes the loophole where anyone who self-registers a Firebase
+    // Auth account (Email/Password signup is open by default) could add themselves
+    // here and grant themselves admin access.
+    match /adminUsers/{email} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Public product catalog — anyone can browse the storefront, only admins can edit.
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Customers are never signed in, so order creation must stay public. But only
+    // admins can list, read, update status, or delete orders — this is what protects
+    // customer names/phones/addresses from being scraped or tampered with.
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Storefront needs to read shop settings (WhatsApp number, banners...).
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Everything else: closed by default. No more open catch-all.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

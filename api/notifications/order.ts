@@ -17,7 +17,7 @@ export default async function handler(req: any, res: any) {
     const total = Number(order.totalAmount || 0).toLocaleString('fr-FR');
 
     const result = await sendNotificationToAdmins({
-      title: '🛍️ Nouvelle commande — MARASSEURAVIE',
+      title: '🛍️ Nouvelle commande ',
       body: `${productLabel} × ${itemCount} • Total : ${total} FCFA`,
       image: firstItem?.image,
       actionUrl: `/admin/orders/${encodeURIComponent(order.id)}`,

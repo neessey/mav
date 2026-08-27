@@ -1,6 +1,6 @@
 // MARASSEURAVIE - production Web Push service worker
 const CACHE_NAME = 'marasseuravie-v2';
-const CORE_ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.svg', '/icon-512.svg'];
+const CORE_ASSETS = ['/', '/index.html', '/manifest.json', '/assets/logo.png', '/icon-512.svg'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -32,8 +32,8 @@ self.addEventListener('push', (event) => {
   let payload = {
     title: 'MARASSEURAVIE',
     body: 'Nouvelle notification.',
-    icon: '/icon-192.svg',
-    badge: '/icon-192.svg',
+    icon: '/assets/logo.png',
+    badge: '/assets/logo.png',
     data: { url: '/admin' },
     tag: `mav-${Date.now()}`,
   };

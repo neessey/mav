@@ -5,7 +5,7 @@ export default async function handler(req: any, res: any) {
   try {
     const result = await sendNotificationToAdmins({
       title: '🔔 Test — MARASSEURAVIE',
-      body: 'Les notifications push réelles sont activées sur cet appareil.',
+      body: 'Les notifications push  sont activées sur cet appareil.',
       actionUrl: '/admin',
     });
     return res.status(200).json(result);

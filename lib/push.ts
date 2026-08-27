@@ -147,8 +147,8 @@ export async function sendNotificationToAdmins(payload: {
   const pushPayload = JSON.stringify({
     title: payload.title,
     body: payload.body,
-    icon: payload.icon || '/icon-192.svg',
-    badge: payload.badge || '/icon-192.svg',
+    icon: payload.icon || '/assets/logo.png',
+    badge: payload.badge || '/assets/logo.png',
     ...(payload.image ? { image: payload.image } : {}),
     data: { url: actionUrl, ...(payload.data || {}) },
     tag: `mav-${Date.now()}`,

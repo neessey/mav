@@ -71,9 +71,6 @@ export const FirebaseService = {
 
     const admins = snapshot.docs.map(doc => doc.data());
 
-    console.log('Admins Firestore:', admins);
-    console.log('Email recherché:', email);
-
     return admins.some(
       admin => admin.email?.trim().toLowerCase() === email.trim().toLowerCase()
     );
@@ -86,9 +83,14 @@ export const FirebaseService = {
   // Ajouter un admin (réservé)
   addAdmin: async (email: string, role: string = 'admin'): Promise<void> => {
     try {
-      const adminRef = collection(db, ADMIN_COLLECTION);
-      await addDoc(adminRef, {
-        email,
+      // BUG FIX: previously used addDoc (random document ID), which made it impossible
+      // for Firestore Security Rules to check "is this signed-in user an admin?" via
+      // exists() — that check needs a known, predictable document path. Keying by the
+      // (lowercased) email makes it exists(/adminUsers/{email}) — matching the rules.
+      const normalizedEmail = email.trim().toLowerCase();
+      const adminRef = doc(db, ADMIN_COLLECTION, normalizedEmail);
+      await setDoc(adminRef, {
+        email: normalizedEmail,
         role,
         createdAt: new Date().toISOString(),
       });

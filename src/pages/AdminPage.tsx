@@ -327,13 +327,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
 
       const status = await PushNotificationService.getSubscriptionStatus();
       setPushStatus(status);
-      setPushFeedback('✅ Notifications push réelles activées sur cet appareil.');
+      setPushFeedback('✅ Notifications push  activées sur cet appareil.');
 
       // Verify the complete chain by asking the server to send a real push.
       try {
         const testResult = await PushNotificationService.sendTestNotification();
         if (testResult?.success && Number(testResult.sentCount) > 0) {
-          setPushFeedback('✅ Notifications push activées et test réel envoyé.');
+          setPushFeedback('✅ Notifications push activées et test envoyé.');
         } else {
           setPushFeedback('⚠️ Abonnement activé, mais le serveur n’a trouvé aucun appareil à notifier.');
         }

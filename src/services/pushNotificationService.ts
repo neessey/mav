@@ -116,7 +116,7 @@ export const PushNotificationService = {
         throw new Error(result.error || 'Le serveur n’a pas enregistré cet appareil.');
       }
 
-      return { success: true, message: 'Cet appareil reçoit maintenant les notifications push réelles.' };
+      return { success: true, message: 'Cet appareil reçoit maintenant les notifications push.' };
     } catch (error: any) {
       console.error('Push subscription failed:', error);
       return { success: false, message: error?.message || 'Échec de l’abonnement aux notifications.' };
