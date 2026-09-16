@@ -117,7 +117,7 @@ function saveData<T>(key: string, data: T): void {
 
 // Store singleton API
 export const StoreAPI = {
-  getProducts: (): Product[] => loadData(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS),
+  getProducts: (): Product[] => loadData(STORAGE_KEYS.PRODUCTS,  []),
   setProducts: (products: Product[]) => saveData(STORAGE_KEYS.PRODUCTS, products),
   
   getProductById: (id: string): Product | undefined => {
@@ -172,7 +172,7 @@ export const StoreAPI = {
     }
   },
 
-  getCollections: (): Collection[] => loadData(STORAGE_KEYS.COLLECTIONS, INITIAL_COLLECTIONS),
+  getCollections: (): Collection[] => loadData(STORAGE_KEYS.COLLECTIONS,  []),
   setCollections: (collections: Collection[]) => saveData(STORAGE_KEYS.COLLECTIONS, collections),
 
   fetchBackendCollections: async (): Promise<Collection[]> => {
@@ -180,11 +180,11 @@ export const StoreAPI = {
       const collections = await FirebaseService.getCollections();
       // If Firestore has not been initialized yet, keep the existing local data.
       // This allows the first admin login to migrate an already customized local catalog.
-      const normalized = collections.length > 0
-        ? collections as Collection[]
-        : StoreAPI.getCollections();
-      StoreAPI.setCollections(normalized);
-      return normalized;
+      const normalized = collections as Collection[];
+
+StoreAPI.setCollections(normalized);
+return normalized;
+     
     } catch (error) {
       console.error('Erreur récupération collections Firestore:', error);
       return StoreAPI.getCollections();
@@ -223,17 +223,25 @@ export const StoreAPI = {
   getSettings: (): BrandSettings => loadData(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS),
   setSettings: (settings: BrandSettings) => saveData(STORAGE_KEYS.SETTINGS, settings),
 
-  getCampaign: (): Campaign => loadData(STORAGE_KEYS.CAMPAIGN, INITIAL_CAMPAIGN),
+getCampaign: (): Campaign | null =>
+  loadData<Campaign | null>(STORAGE_KEYS.CAMPAIGN, null),
   setCampaign: (campaign: Campaign) => saveData(STORAGE_KEYS.CAMPAIGN, campaign),
 
-  fetchBackendCampaign: async (): Promise<Campaign> => {
+  fetchBackendCampaign: async (): Promise<Campaign | null> => {
     try {
       const campaign = await FirebaseService.getCampaign();
       // Keep the current local campaign until the first admin migration if
       // Firestore does not contain one yet.
-      const normalized = (campaign || StoreAPI.getCampaign()) as Campaign;
-      StoreAPI.setCampaign(normalized);
-      return normalized;
+   const normalized = (campaign || null) as Campaign | null;
+
+if (normalized) {
+  StoreAPI.setCampaign(normalized);
+} else {
+  localStorage.removeItem(STORAGE_KEYS.CAMPAIGN);
+  notifyAll();
+}
+
+return normalized;
     } catch (error) {
       console.error('Erreur récupération campaign Firestore:', error);
       return StoreAPI.getCampaign();
@@ -285,7 +293,7 @@ export const StoreAPI = {
     }
   },
 
-  getNotifications: (): PushNotification[] => loadData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS),
+  getNotifications: (): PushNotification[] => loadData(STORAGE_KEYS.NOTIFICATIONS, []),
   setNotifications: (notifs: PushNotification[]) => saveData(STORAGE_KEYS.NOTIFICATIONS, notifs),
 
   addNotification: (notif: Omit<PushNotification, 'id' | 'date'>) => {
@@ -301,7 +309,7 @@ export const StoreAPI = {
   },
 
   // --- ORDERS MANAGEMENT ---
-  getOrders: (): Order[] => loadData(STORAGE_KEYS.ORDERS, INITIAL_ORDERS),
+  getOrders: (): Order[] => loadData(STORAGE_KEYS.ORDERS,  []),
   setOrders: (orders: Order[]) => saveData(STORAGE_KEYS.ORDERS, orders),
 
  fetchBackendOrders: async (): Promise<Order[]> => {
