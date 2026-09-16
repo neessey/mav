@@ -50,7 +50,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div className="absolute top-3 right-3 z-10">
             <span
               id={`badge-${product.id}`}
-              className="text-[10px] uppercase font-mono-brand font-bold px-2 py-0.5 tracking-wider bg-black/80 text-white border border-white/20"
+              className="text-[10px] uppercase font-mono-brand font-bold px-2 rounded-2xl  py-0.5 tracking-wider bg-black/80 text-white border border-white/20"
             >
               {product.badge}
             </span>

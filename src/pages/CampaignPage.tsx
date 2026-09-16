@@ -278,7 +278,7 @@ export const CampaignPage: React.FC<CampaignPageProps> = ({
 
           <button
             onClick={() => onNavigate('shop')}
-            className="group mt-7 inline-flex items-center gap-3 bg-white px-7 py-4 font-display text-[10px] uppercase tracking-[0.18em] text-black transition-all duration-300 hover:bg-neutral-200 sm:px-8 sm:py-4"
+            className="group mt-7 inline-flex items-center gap-3  rounded-2xl bg-white px-7 py-4 font-display text-[10px] uppercase tracking-[0.18em] text-black transition-all duration-300 hover:bg-neutral-200 sm:px-8 sm:py-4"
           >
             <span>
               COMMANDER LES PIÈCES DU LOOKBOOK

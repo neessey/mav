@@ -24,7 +24,7 @@ export const INITIAL_SETTINGS: BrandSettings = {
   announcement: 'DROP 01 DISPONIBLE — TRICOTS SIGNATURE EN ÉDITION LIMITÉE — LIVRAISON ABIDJAN & INTERNATIONAL',
   heroHeadline: 'MARASSEURAVIE',
   heroSubheadline: 'SINCE 2025',
-  heroImage: heroImg,
+  heroImage: '/assets/hero.png',
 };
 
 export const INITIAL_PRODUCTS: Product[] = [
@@ -61,7 +61,7 @@ export const INITIAL_PRODUCTS: Product[] = [
 ];
 
 export const INITIAL_COLLECTIONS: Collection[] = [
-
+ 
   {
     id: 'col-tshirts',
     name: 'T-SHIRTS',
@@ -88,8 +88,8 @@ export const INITIAL_COLLECTIONS: Collection[] = [
 
 export const INITIAL_CAMPAIGN: Campaign = {
   id: 'campaign-01',
-  title: 'CAMPAIGN 01',
-  subtitle: 'MARASSEURAVIE — 2025',
+  title: 'CAMPAIGN',
+  subtitle: 'MARASSEURAVIE',
   year: '2025',
   season: 'INAUGURAL DROP',
   coverImage: storyGroupImg,
@@ -103,30 +103,7 @@ export const INITIAL_CAMPAIGN: Campaign = {
       aspect: 'wide',
       location: 'Abidjan'
     },
-    {
-      id: 'shot-02',
-      url: tricot01Img,
-      title: 'TACTILE SILENCE',
-      caption: 'Maille dense et coupe géométrique.',
-      aspect: 'tall',
-      location: 'Studio Nocturne'
-    },
-    {
-      id: 'shot-03',
-      url: survetement01Img,
-      title: 'FUTURE TRACKSUIT CONCEPT',
-      caption: 'Survêtement Drop 01 — Silhouette grise et présence urbaine.',
-      aspect: 'tall',
-      location: 'Studio Archive'
-    },
-    {
-      id: 'shot-04',
-      url: storyGroupImg,
-      title: 'MOVE DIFFERENT',
-      caption: 'Une même rigueur stylistique.',
-      aspect: 'wide',
-      location: 'Abidjan Studio'
-    }
+   
   ]
 };
 

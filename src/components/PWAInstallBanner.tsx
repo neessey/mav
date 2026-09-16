@@ -45,7 +45,7 @@ export const PWAInstallBanner: React.FC = () => {
     <aside
       id="pwa-install-banner"
       aria-label="Installation de l'application"
-      className="fixed bottom-24 left-6 right-6 sm:left-auto sm:right-6 sm:w-96 z-40 bg-[#0D0D0D] border border-white/20 p-4 shadow-2xl flex items-center justify-between gap-3 text-white animate-fadeIn"
+      className="fixed bottom-24 left-6 right-6 sm:left-auto rounded-2xl  sm:right-6 sm:w-96 z-40 bg-[#0D0D0D] border border-white/20 p-4 shadow-2xl flex items-center justify-between gap-3 text-white animate-fadeIn"
     >
       <div className="flex items-center gap-3">
         <img

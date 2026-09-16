@@ -1,5 +1,5 @@
 // MARASSEURAVIE - production Web Push service worker
-const CACHE_NAME = 'marasseuravie-v2';
+const CACHE_NAME = 'marasseuravie-v3';
 const CORE_ASSETS = ['/', '/index.html', '/manifest.json', '/assets/logo.png', '/icon-512.svg'];
 
 self.addEventListener('install', (event) => {

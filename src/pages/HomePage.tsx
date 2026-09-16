@@ -36,78 +36,69 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* =========================================================
           HERO
       ========================================================= */}
-      <section
-        id="hero-section"
-        className="relative min-h-[100svh] w-full overflow-hidden bg-black"
-      >
-        {/* Background image */}
-        <div className="absolute inset-0 lg:left-[27%]">
-          <img
-            src={settings.heroImage}
-            alt="MARASSEURAVIE"
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover object-center scale-[1.02]"
-          />
+    <section
+  id="hero-section"
+  className="relative min-h-[100svh] w-full overflow-hidden bg-black"
+>
+  {/* Background image */}
+  <div className="absolute inset-0">
+    <img
+      src={settings.heroImage}
+      alt="MARASSEURAVIE"
+      referrerPolicy="no-referrer"
+      className="h-full w-full object-cover object-center"
+    />
+  </div>
+
+  {/* Cinematic overlays */}
+  <div className="absolute inset-0 bg-black/30" />
+
+  <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent lg:via-black/45" />
+
+  <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
+
+  {/* Top editorial line */}
+  <div className="absolute right-0 top-0 z-20 flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
+    <span className="font-mono-brand text-[10px] uppercase tracking-[0.3em] text-white/60">
+      MARASSEURAVIE
+    </span>
+  </div>
+
+  {/* Hero content */}
+  <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-10 pt-28 sm:px-8 sm:pb-14 lg:w-[58%] lg:px-16 lg:pb-20">
+    <div className="max-w-3xl">
+      <div className="mb-6 flex items-center gap-4">
+        <span className="font-mono-brand text-[10px] uppercase tracking-[0.3em] text-white/70">
+          NEW COLLECTION
+        </span>
+      </div>
+
+      <h1 className="font-display text-[clamp(3.8rem,10vw,9rem)] uppercase leading-[0.78] tracking-[-0.055em] text-white">
+        MARASSEURAVIE
+      </h1>
+
+      <div className="mt-7 flex max-w-xl flex-col gap-5 sm:mt-9">
+        <p className="max-w-md text-sm leading-relaxed text-white/65 sm:text-base">
+          Plus qu'une manière de s'habiller.
+          <br />
+          Une manière d'avancer.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            id="hero-discover-btn"
+            onClick={() => onNavigate('shop')}
+            className="group inline-flex items-center gap-4 rounded-2xl border border-white bg-white px-6 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-black transition-all duration-300 hover:bg-transparent hover:text-white sm:px-7"
+          >
+            <span>Découvrir le catalogue</span>
+
+            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+          </button>
         </div>
-
-        {/* Cinematic overlays */}
-        <div className="absolute inset-0 bg-black/30" />
-
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent lg:via-black/45" />
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
-
-        {/* Top editorial line */}
-        <div className="absolute right-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
-          <span className="font-mono-brand  text-[10px] uppercase tracking-[0.3em] text-white/60">
-            MARASSEURAVIE
-          </span>
-
-        </div>
-
-       
-
-        {/* Hero content */}
-        <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-10 pt-28 sm:px-8 sm:pb-14 lg:w-[58%] lg:px-16 lg:pb-20">
-          <div className="max-w-3xl">
-            {/* Eyebrow */}
-            <div className="mb-6 flex items-center gap-4">
-
-              <span className="font-mono-brand text-[10px] uppercase tracking-[0.3em] text-white/70">
-                NEW COLLECTION
-              </span>
-            </div>
-
-            {/* Main title */}
-            <h1 className="font-display text-[clamp(3.8rem,10vw,9rem)] uppercase leading-[0.78] tracking-[-0.055em] text-white">
-              MARASSEURAVIE
-            </h1>
-
-            <div className="mt-7 flex max-w-xl flex-col gap-5 sm:mt-9">
-              <p className="max-w-md text-sm leading-relaxed text-white/65 sm:text-base">
-                Plus qu'une manière de s'habiller.
-                <br />
-                Une manière d'avancer.
-              </p>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  id="hero-discover-btn"
-                  onClick={() => onNavigate('shop')}
-                  className="group inline-flex items-center gap-4 border border-white bg-white px-6 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-black transition-all duration-300 hover:bg-transparent hover:text-white sm:px-7"
-                >
-                  <span>Découvrir la collection</span>
-
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-
-               
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      </div>
+    </div>
+  </div>
+</section>
       {/* =========================================================
           INTRO
       ========================================================= */}
@@ -193,7 +184,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="grid min-h-[700px] lg:grid-cols-2">
           {/* Image */}
           <div className="relative min-h-[500px] overflow-hidden lg:min-h-[700px]">
-            <img loading="lazy"              src={campaign.coverImage}
+            <img loading="lazy"              src="/assets/cta.png"
               alt="MARASSEURAVIE Campaign"
               referrerPolicy="no-referrer"
               className="h-full w-full object-cover object-center transition-transform duration-[1.5s] hover:scale-[1.03]"

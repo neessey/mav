@@ -74,7 +74,7 @@ export const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({ onNavigate }) => {
                     const msg = `Bonjour MARASSEURAVIE, je souhaite commander le ${featuredKnit.name} en taille M.`;
                     handleSendDirect(msg);
                   }}
-                  className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
+                  className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 rounded-2xl border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
                 >
                   <div className="flex items-center gap-2">
                     <ShoppingBag className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white" />
@@ -89,7 +89,7 @@ export const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({ onNavigate }) => {
               <button
                 id="wa-quick-sizes"
                 onClick={() => handleQuickQuestion('Guide des tailles et essayage à Abidjan')}
-                className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
+                className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 rounded-2xl border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
               >
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white" />
@@ -101,7 +101,7 @@ export const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({ onNavigate }) => {
               <button
                 id="wa-quick-delivery"
                 onClick={() => handleQuickQuestion('Délais et zones de livraison')}
-                className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
+                className="text-left text-xs bg-black/60 hover:bg-neutral-800/80 rounded-2xl border border-neutral-800 hover:border-white p-2.5 flex items-center justify-between transition-all group"
               >
                 <div className="flex items-center gap-2">
                   <MessageCircle className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white" />

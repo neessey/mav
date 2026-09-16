@@ -40,10 +40,10 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onNavigate }) 
                 key={collection.id}
                 id={`col-block-${collection.id}`}
                 onClick={() => onNavigate('shop', undefined, collection.slug)}
-                className="group cursor-pointer flex flex-col bg-[#0D0D0D] border border-white/10 hover:border-white/40 transition-all duration-300"
+                className="group cursor-pointer flex flex-col bg-[#0D0D0D] border rounded-2xl border-white/10 hover:border-white/40 transition-all duration-300"
               >
                 {/* Large Editorial Card Image */}
-                <div className="relative aspect-[16/10] sm:aspect-[16/9] bg-black overflow-hidden">
+                <div className="relative aspect-[16/10] rounded-2xl sm:aspect-[16/9] bg-black overflow-hidden">
                   <img loading="lazy"                    src={collection.image}
                     alt={collection.name}
                     referrerPolicy="no-referrer"

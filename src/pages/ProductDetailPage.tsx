@@ -378,7 +378,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                     <button
                       key={col.name}
                       onClick={() => setSelectedColor(col.name)}
-                      className={`flex items-center gap-2 px-3 py-2 border text-xs font-mono-brand transition-all ${
+                      className={`flex items-center gap-2 px-3 py-2 border rounded-2xl text-xs font-mono-brand transition-all ${
                         selectedColor === col.name
                           ? 'border-white bg-white/10 text-white'
                           : 'border-neutral-800 text-neutral-400 hover:border-neutral-700'
@@ -415,7 +415,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                     <button
                       key={size}
                       onClick={() => setSelectedSize(size)}
-                      className={`py-3 text-center text-xs font-mono-brand font-bold uppercase tracking-wider border transition-all ${
+                      className={`py-3 text-center text-xs font-mono-brand font-bold rounded-2xl uppercase tracking-wider border transition-all ${
                         selectedSize === size
                           ? 'bg-white text-black border-white'
                           : 'bg-black text-neutral-300 border-neutral-800 hover:border-neutral-600 hover:text-white'
@@ -461,7 +461,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                       setShowDeliveryForm(true);
                     }}
                     disabled={isOrdering}
-                    className="w-full bg-white text-black font-display text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full bg-white text-black font-display rounded-2xl text-xs uppercase tracking-[0.2em] py-4.5 px-6 flex items-center justify-center gap-3 hover:bg-neutral-200 transition-all shadow-2xl disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <MessageCircle className="w-4 h-4 fill-current" />
                     <span>COMMANDER</span>
@@ -470,19 +470,13 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                   <div className="flex gap-3">
                     <button
                       onClick={handleAddToBag}
-                      className="flex-1 bg-black border border-white/40 text-white font-bold text-xs uppercase tracking-widest py-3.5 px-4 flex items-center justify-center gap-2 hover:bg-neutral-900 hover:border-white transition-colors"
+                      className="flex-1 bg-black border border-white/40 text-white rounded-2xl font-bold text-xs uppercase tracking-widest py-3.5 px-4 flex items-center justify-center gap-2 hover:bg-neutral-900 hover:border-white transition-colors"
                     >
                       <ShoppingBag className="w-4 h-4" />
                       <span>AJOUTER AU PANIER</span>
                     </button>
 
-                    <button
-                      onClick={onOpenCart}
-                      className="bg-neutral-900 border border-neutral-800 text-neutral-300 px-4 py-3.5 text-xs font-mono-brand hover:text-white hover:border-white"
-                      title="Voir le panier"
-                    >
-                      VOIR LE SAC
-                    </button>
+                   
                   </div>
 
                   {addedToast && (

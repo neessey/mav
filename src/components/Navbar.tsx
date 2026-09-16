@@ -198,7 +198,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full bg-white text-black font-display  text-xs uppercase tracking-widest py-3.5 text-center flex items-center justify-center gap-2 hover:bg-neutral-200 transition-colors"
+              className="w-full bg-white text-black font-display  rounded-2xl text-xs uppercase tracking-widest py-3.5 text-center flex items-center justify-center gap-2 hover:bg-neutral-200 transition-colors"
             >
               <span>COMMANDER SUR WHATSAPP</span>
               <ArrowRight className="w-4 h-4" />

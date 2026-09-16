@@ -3,6 +3,8 @@ import {
   PageView,
   Product,
   Collection,
+  Campaign,
+  LookbookShot,
   PushNotification,
   ProductCategory,
   ProductStatus,
@@ -12,7 +14,7 @@ import {
 import { useStore } from '../services/store';
 import { PushNotificationService } from '../services/pushNotificationService';
 import { ProductImageUploader } from '../components/private/ProductImageUploader';
-import type { CloudinaryImage } from '../services/cloudinary';
+import { uploadImageToCloudinary, type CloudinaryImage } from '../services/cloudinary';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -49,6 +51,8 @@ import {
   ArrowUpRight,
   Mail,
   Info,
+  ImagePlus,
+  Upload,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -57,7 +61,7 @@ interface AdminPageProps {
   initialOrderId?: string;
 }
 
-type AdminTab = 'dashboard' | 'orders' | 'products' | 'collections' | 'notifications' | 'database' | 'settings';
+type AdminTab = 'dashboard' | 'orders' | 'products' | 'collections' | 'campaign' | 'notifications' | 'database' | 'settings';
 
 interface NavItem {
   id: AdminTab;
@@ -76,6 +80,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
   const {
     products,
     collections,
+    campaign,
     settings,
     orders,
     notifications,
@@ -85,6 +90,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     saveCollection,
     deleteCollection,
     setSettings,
+    setCampaign,
     addNotification,
     createOrder,
     updateOrderStatus,
@@ -139,6 +145,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
   // Collection editing state
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+
+  // Campaign editing state
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [campaignCoverFile, setCampaignCoverFile] = useState<File | null>(null);
+  const [campaignShotFiles, setCampaignShotFiles] = useState<Record<string, File>>({});
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+  const [campaignUploadError, setCampaignUploadError] = useState<string | null>(null);
 
   // Settings form local state
   const [settingsForm, setSettingsForm] = useState(settings);
@@ -422,13 +435,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     }
   };
 
+  const uploadSingleImage = async (file: File) => {
+    const uploaded = await uploadImageToCloudinary(file);
+    return uploaded.secure_url || uploaded.url;
+  };
+
+  const handleCollectionImageChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingCollection) return;
+
+    try {
+      const url = await uploadSingleImage(file);
+      setEditingCollection({ ...editingCollection, image: url });
+    } catch (error: any) {
+      alert(error?.message || "Impossible d'envoyer la photo de la collection.");
+    }
+  };
+
   const handleCreateNewCollection = () => {
     setEditingCollection({
       id: `col-custom-${Date.now()}`,
       name: 'NOUVELLE CAPSULE',
       slug: `capsule-${Date.now()}`,
       description: 'Description de la capsule...',
-      image: collections[0]?.image || '',
+      image: '',
       productIds: [],
       status: 'active',
       season: '2025 / CAPSULE',
@@ -443,6 +476,104 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
       saveCollection(editingCollection);
       setEditingCollection(null);
       setIsCreatingCollection(false);
+    }
+  };
+
+  const handleOpenCampaignEditor = () => {
+    setEditingCampaign(JSON.parse(JSON.stringify(campaign)));
+    setCampaignCoverFile(null);
+    setCampaignShotFiles({});
+    setCampaignUploadError(null);
+    setCurrentTab('campaign');
+  };
+
+  const handleCampaignCoverChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) setCampaignCoverFile(file);
+  };
+
+  const handleCampaignShotChange = (shotId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) {
+      setCampaignShotFiles(current => ({ ...current, [shotId]: file }));
+    }
+  };
+
+  const handleAddCampaignShot = () => {
+    if (!editingCampaign) return;
+
+    const newShot: LookbookShot = {
+      id: `shot-${Date.now()}`,
+      url: '',
+      title: 'NOUVELLE PHOTO',
+      caption: '',
+      aspect: 'wide',
+      location: 'Abidjan',
+    };
+
+    setEditingCampaign({
+      ...editingCampaign,
+      shots: [...editingCampaign.shots, newShot],
+    });
+  };
+
+  const handleRemoveCampaignShot = (shotId: string) => {
+    if (!editingCampaign) return;
+
+    const nextFiles = { ...campaignShotFiles };
+    delete nextFiles[shotId];
+    setCampaignShotFiles(nextFiles);
+
+    setEditingCampaign({
+      ...editingCampaign,
+      shots: editingCampaign.shots.filter(shot => shot.id !== shotId),
+    });
+  };
+
+  const handleSaveCampaignForm = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingCampaign) return;
+
+    setIsSavingCampaign(true);
+    setCampaignUploadError(null);
+
+    try {
+      let coverImage = editingCampaign.coverImage;
+
+      if (campaignCoverFile) {
+        coverImage = await uploadSingleImage(campaignCoverFile);
+      }
+
+      const shots = await Promise.all(
+        editingCampaign.shots.map(async (shot) => {
+          const file = campaignShotFiles[shot.id];
+          if (!file) return shot;
+
+          return {
+            ...shot,
+            url: await uploadSingleImage(file),
+          };
+        })
+      );
+
+      const nextCampaign = {
+        ...editingCampaign,
+        coverImage,
+        shots,
+      };
+
+      setCampaign(nextCampaign);
+      setEditingCampaign(nextCampaign);
+      setCampaignCoverFile(null);
+      setCampaignShotFiles({});
+      alert('Campaign mise à jour avec succès.');
+    } catch (error: any) {
+      console.error('Erreur sauvegarde campaign:', error);
+      setCampaignUploadError(error?.message || "Impossible d'enregistrer les photos de la campaign.");
+    } finally {
+      setIsSavingCampaign(false);
     }
   };
 
@@ -526,6 +657,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
           label: 'Collections ',
           icon: Layers,
           badge: `${collections.length}`
+        },
+        {
+          id: 'campaign' as AdminTab,
+          label: 'Campaign',
+          icon: ImagePlus,
+          badge: `${campaign?.shots?.length || 0}`
         }
       ]
     },
@@ -795,7 +932,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                     TABLEAU DE BORD
                   </h1>
                   <p className="text-xs font-mono-brand text-neutral-400 mt-1">
-                    Vue d'ensemble en temps réel de l'activité, des commandes WhatsApp et des stocks MARASSEURAVIE.
+                    Vue d'ensemble  de l'activité, des commandes WhatsApp et des stocks MARASSEURAVIE.
                   </p>
                 </div>
 
@@ -826,7 +963,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                       {totalRevenue.toLocaleString('fr-FR')} {settings.currency}
                     </span>
                     <div className="flex items-center gap-1.5 text-[10px] font-mono-brand text-emerald-400 mt-1">
-                      <span>+18.4% ce mois</span>
+                      
                       <span className="text-neutral-500">• {orders.length} commandes</span>
                     </div>
                   </div>
@@ -989,8 +1126,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                   
                   {/* Category Stock Distribution */}
                   <div className="p-5 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-white">
-                      RÉPARTITION DU CATALOGUE
+                    <h3 className="text-sm  tracking-wider text-white">
+                      Répartition du stock
                     </h3>
                     <div className="space-y-3 text-xs font-mono-brand">
                       {[ 'hoodies', 'tshirts'].map(cat => {
@@ -1023,7 +1160,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                       <Bell className="w-4 h-4 text-emerald-400" />
                     </div>
                     <p className="text-xs font-mono-brand text-neutral-400">
-                      Chaque nouvelle commande sur le site déclenche un push W3C/FCM instantané sur votre téléphone.
+                      Chaque nouvelle commande sur le site déclenche une notifications sur votre téléphone.
                     </p>
                     <div className="pt-2 flex gap-2">
                       <button
@@ -1073,7 +1210,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
             <button
               key={st}
               onClick={() => setOrderStatusFilter(st)}
-              className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[9px] sm:text-xs font-mono-brand uppercase tracking-wider border rounded-xs transition-all whitespace-nowrap ${
+              className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[9px] sm:text-xs font-mono-brand  uppercase tracking-wider border rounded-2xl transition-all whitespace-nowrap ${
                 orderStatusFilter === st
                   ? 'bg-white text-black border-white font-bold'
                   : 'bg-black text-neutral-400 border-neutral-800 hover:border-neutral-700'
@@ -1261,7 +1398,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                       updateOrderStatus(selectedOrder.id, st);
                       setSelectedOrder({ ...selectedOrder, status: st });
                     }}
-                    className={`py-1.5 sm:py-2 text-[8px] sm:text-[10px] font-mono-brand uppercase tracking-wider border rounded-xs transition-colors ${
+                    className={`py-1.5 sm:py-2 text-[8px] sm:text-[10px] font-mono-brand uppercase tracking-wider border rounded-2xl transition-colors ${
                       selectedOrder.status === st
                         ? 'bg-white text-black font-bold border-white'
                         : 'bg-black text-neutral-400 border-neutral-800 hover:text-white'
@@ -1441,6 +1578,59 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
             </div>
           )}
 
+          {/* TAB: CAMPAIGN MANAGEMENT */}
+          {currentTab === 'campaign' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-900 pb-4">
+                <div>
+                  <h1 className="font-display text-3xl text-white uppercase tracking-tight">
+                    CAMPAIGN / LOOKBOOK
+                  </h1>
+                  <p className="text-xs text-neutral-400 font-mono-brand mt-1">
+                    Ajoutez et gérez les photos affichées sur la page Campaign
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingCampaign(JSON.parse(JSON.stringify(campaign)))}
+                  className="px-4 py-2.5 bg-white text-black font-display text-xs uppercase tracking-wider rounded hover:bg-neutral-200 transition-colors"
+                >
+                  Modifier la campaign
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-1 overflow-hidden border border-neutral-800 bg-[#0D0D0D]">
+                  <div className="aspect-[4/3] bg-black">
+                    {campaign?.coverImage && (
+                      <img src={campaign.coverImage} alt="Cover campaign" className="h-full w-full object-cover" />
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <span className="text-[9px] font-mono-brand uppercase text-neutral-500">Cover</span>
+                    <h3 className="mt-1 font-display text-lg uppercase text-white">{campaign?.title}</h3>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {(campaign?.shots || []).map((shot) => (
+                    <div key={shot.id} className="overflow-hidden border border-neutral-800 bg-[#0D0D0D]">
+                      <div className="aspect-[4/5] bg-black">
+                        {shot.url && (
+                          <img src={shot.url} alt={shot.title || ''} className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <p className="truncate text-[9px] font-mono-brand uppercase text-neutral-400">
+                          {shot.title || 'PHOTO'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 5: NOTIFICATIONS PUSH */}
           {currentTab === 'notifications' && (
             <div className="space-y-6">
@@ -1465,7 +1655,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                           STATUT DU TERMINAL ADMINISTRATEUR
                         </h3>
                         <span className="text-xs font-mono-brand text-neutral-400">
-                          Recevoir les alertes de commandes instantanément sur ce navigateur / téléphone
+                          Recevoir les alertes de commandes instantanément sur votre téléphone
                         </span>
                       </div>
                       <span className={`text-xs font-mono-brand font-bold px-2.5 py-1 rounded ${pushStatus.isSubscribed ? 'bg-emerald-500 text-black' : 'bg-amber-500 text-black'}`}>
@@ -1814,16 +2004,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                         }}
                         className="flex-1 bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
                       />
-                      <input
-                        type="text"
-                        value={color.hex}
-                        onChange={(e) => {
-                          const newColors = [...editingProduct.colors];
-                          newColors[idx] = { ...newColors[idx], hex: e.target.value };
-                          setEditingProduct({ ...editingProduct, colors: newColors });
-                        }}
-                        className="w-24 bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none uppercase"
-                      />
+                     
                       <button
                         type="button"
                         onClick={() => {
@@ -1901,6 +2082,138 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
         </div>
       )}
 
+      {/* CAMPAIGN EDIT MODAL */}
+      {editingCampaign && currentTab === 'campaign' && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#0D0D0D] border border-white/20 p-6 rounded-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <div>
+                <h3 className="font-display text-xl text-white uppercase">PHOTOS DE LA CAMPAIGN</h3>
+                <p className="mt-1 text-[10px] font-mono-brand text-neutral-500">
+                  Les images sont envoyées sur Cloudinary puis enregistrées dans la campaign.
+                </p>
+              </div>
+              <button onClick={() => setEditingCampaign(null)} className="p-1 text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCampaignForm} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono-brand uppercase text-neutral-400">Photo de couverture</label>
+                <div className="grid grid-cols-[1fr_auto] gap-3">
+                  <div className="aspect-[16/7] overflow-hidden border border-neutral-800 bg-black">
+                    {(campaignCoverFile ? URL.createObjectURL(campaignCoverFile) : editingCampaign.coverImage) ? (
+                      <img
+                        src={campaignCoverFile ? URL.createObjectURL(campaignCoverFile) : editingCampaign.coverImage}
+                        alt="Cover campaign"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-neutral-600">
+                        <ImagePlus className="h-8 w-8" />
+                      </div>
+                    )}
+                  </div>
+                  <label className="flex min-w-40 cursor-pointer items-center justify-center gap-2 border border-dashed border-neutral-700 px-4 text-[10px] font-mono-brand uppercase text-neutral-300 hover:border-white hover:text-white">
+                    <Upload className="w-4 h-4" />
+                    Remplacer
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={handleCampaignCoverChange} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-display text-sm uppercase text-white">Photos du lookbook ({editingCampaign.shots.length})</h4>
+                  <button
+                    type="button"
+                    onClick={handleAddCampaignShot}
+                    className="flex items-center gap-2 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-black"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Ajouter une photo
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {editingCampaign.shots.map((shot) => {
+                    const selectedFile = campaignShotFiles[shot.id];
+                    const preview = selectedFile ? URL.createObjectURL(selectedFile) : shot.url;
+
+                    return (
+                      <div key={shot.id} className="border border-neutral-800 bg-black p-3 space-y-3">
+                        <div className="aspect-[4/5] overflow-hidden border border-neutral-800 bg-[#0D0D0D]">
+                          {preview ? (
+                            <img src={preview} alt={shot.title || ''} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-neutral-600">
+                              <ImagePlus className="w-7 h-7" />
+                            </div>
+                          )}
+                        </div>
+
+                        <label className="flex cursor-pointer items-center justify-center gap-2 border border-neutral-800 px-3 py-2 text-[9px] font-mono-brand uppercase text-neutral-300 hover:border-white hover:text-white">
+                          <Upload className="w-3.5 h-3.5" />
+                          {shot.url || selectedFile ? 'Changer la photo' : 'Ajouter la photo'}
+                          <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(e) => handleCampaignShotChange(shot.id, e)} className="hidden" />
+                        </label>
+
+                        <input
+                          value={shot.title || ''}
+                          onChange={(e) => setEditingCampaign({
+                            ...editingCampaign,
+                            shots: editingCampaign.shots.map(item => item.id === shot.id ? { ...item, title: e.target.value } : item)
+                          })}
+                          placeholder="Titre"
+                          className="w-full bg-[#0D0D0D] border border-neutral-800 p-2 text-xs text-white font-mono-brand outline-none focus:border-white"
+                        />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={shot.aspect}
+                            onChange={(e) => setEditingCampaign({
+                              ...editingCampaign,
+                              shots: editingCampaign.shots.map(item => item.id === shot.id ? { ...item, aspect: e.target.value as LookbookShot['aspect'] } : item)
+                            })}
+                            className="w-full bg-[#0D0D0D] border border-neutral-800 p-2 text-xs text-white font-mono-brand outline-none"
+                          >
+                            <option value="tall">Tall</option>
+                            <option value="wide">Wide</option>
+                            <option value="square">Square</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCampaignShot(shot.id)}
+                            className="flex items-center justify-center gap-1 border border-red-900/50 text-red-400 hover:bg-red-950/30 text-[9px] font-mono-brand uppercase"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {campaignUploadError && (
+                <div className="border border-red-500/20 bg-red-500/5 p-3 text-[10px] font-mono-brand text-red-400">
+                  {campaignUploadError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 border-t border-neutral-800 pt-4">
+                <button type="button" onClick={() => setEditingCampaign(null)} className="px-4 py-2.5 bg-neutral-900 text-neutral-300 text-xs font-mono-brand uppercase rounded">
+                  Annuler
+                </button>
+                <button type="submit" disabled={isSavingCampaign} className="px-6 py-2.5 bg-white text-black font-display text-xs uppercase tracking-wider rounded disabled:opacity-50">
+                  {isSavingCampaign ? 'Enregistrement...' : 'Enregistrer les photos'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* COLLECTION CREATE/EDIT MODAL */}
       {editingCollection && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -1947,6 +2260,39 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                   onChange={(e) => setEditingCollection({ ...editingCollection, description: e.target.value })}
                   className="w-full bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
+                  Photo de la collection
+                </label>
+
+                <div className="overflow-hidden border border-neutral-800 bg-black">
+                  <div className="aspect-[16/9]">
+                    {editingCollection.image ? (
+                      <img
+                        src={editingCollection.image}
+                        alt={editingCollection.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-neutral-600">
+                        <ImagePlus className="h-7 w-7" />
+                      </div>
+                    )}
+                  </div>
+
+                  <label className="flex cursor-pointer items-center justify-center gap-2 border-t border-neutral-800 px-4 py-3 text-[10px] font-mono-brand uppercase tracking-wider text-neutral-300 hover:bg-neutral-900 hover:text-white">
+                    <Upload className="h-3.5 w-3.5" />
+                    {editingCollection.image ? 'Remplacer la photo' : 'Ajouter la photo'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      onChange={handleCollectionImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-neutral-800">

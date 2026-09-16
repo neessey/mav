@@ -181,7 +181,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   href={social.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] font-mono-brand tracking-widest uppercase px-3 py-1.5 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white transition-colors"
+                  className="text-[10px] font-mono-brand tracking-widest uppercase px-3 rounded-2xl py-1.5 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white transition-colors"
                 >
                   {social.name}
                 </a>
