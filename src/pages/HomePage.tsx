@@ -1,5 +1,5 @@
-import React from 'react';
-import { PageView } from '../types';
+import React, { useEffect, useState } from 'react';
+import { Campaign, PageView } from '../types';
 import { useStore } from '../services/store';
 import { ProductCard } from '../components/ProductCard';
 import {
@@ -26,6 +26,64 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const { products, settings, campaign } = useStore();
 
+const [showCampaignPopup, setShowCampaignPopup] = useState(false);
+
+useEffect(() => {
+  if (!campaign) return;
+
+  // On crée une signature unique à partir du contenu actuel
+  // de la campagne. Cela fonctionne même si campaign.id reste identique.
+  const campaignSignature = JSON.stringify({
+    id: campaign.id,
+    title: campaign.title,
+    subtitle: campaign.subtitle,
+    year: campaign.year,
+    season: campaign.season,
+    coverImage: campaign.coverImage,
+    statement: campaign.statement,
+    shots: campaign.shots.map((shot) => ({
+      id: shot.id,
+      url: shot.url,
+      title: shot.title,
+      caption: shot.caption,
+    })),
+  });
+
+  const storageKey = 'mav_seen_campaign_signature';
+  const seenCampaign = localStorage.getItem(storageKey);
+
+  if (seenCampaign !== campaignSignature) {
+    const timer = window.setTimeout(() => {
+      setShowCampaignPopup(true);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }
+}, [campaign]);
+
+const closeCampaignPopup = () => {
+  if (!campaign) return;
+
+  const campaignSignature = JSON.stringify({
+    id: campaign.id,
+    title: campaign.title,
+    subtitle: campaign.subtitle,
+    year: campaign.year,
+    season: campaign.season,
+    coverImage: campaign.coverImage,
+    statement: campaign.statement,
+    shots: campaign.shots.map((shot) => ({
+      id: shot.id,
+      url: shot.url,
+      title: shot.title,
+      caption: shot.caption,
+    })),
+  });
+
+  localStorage.setItem('mav_seen_campaign_signature', campaignSignature);
+  setShowCampaignPopup(false);
+};
+
   const newDropProducts = products.slice(0, 4);
 
   return (
@@ -33,6 +91,83 @@ export const HomePage: React.FC<HomePageProps> = ({
       id="home-page-container"
       className="w-full overflow-hidden bg-black text-white selection:bg-white selection:text-black"
     >
+ {showCampaignPopup && campaign && (
+  <div
+    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Nouvelle campagne MARASSEURAVIE"
+  >
+    <div className="relative w-full max-w-md overflow-hidden border border-white/10 bg-[#0b0b0b] shadow-2xl">
+
+      {/* CLOSE */}
+      <button
+        type="button"
+        onClick={closeCampaignPopup}
+        aria-label="Fermer"
+        className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center border border-white/15 bg-black/40 text-white/70 transition-colors hover:bg-white hover:text-black"
+      >
+        <span className="text-lg leading-none">×</span>
+      </button>
+
+      {/* IMAGE */}
+      <div className="relative h-56 w-full bg-neutral-900">
+        <img
+          src={campaign.coverImage}
+          alt={campaign.title}
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0b] via-transparent to-transparent" />
+      </div>
+
+      {/* CONTENT */}
+      <div className="flex flex-col items-center px-8 py-8 text-center">
+
+        <span className="mb-3 font-mono-brand text-[8px] uppercase tracking-[0.35em] text-white/40">
+          Nouvelle campagne
+        </span>
+
+        <h2 className="font-display text-3xl uppercase leading-[0.95] tracking-[-0.03em] text-white">
+          {campaign.title}
+        </h2>
+
+        {campaign.subtitle && (
+          <p className="mt-3 max-w-xs text-xs leading-relaxed text-white/50">
+            {campaign.subtitle}
+          </p>
+        )}
+
+        <div className="my-5 h-px w-8 bg-white/25" />
+
+        <p className="max-w-xs text-xs leading-6 text-white/60">
+          Découvrez notre nouvelle campagne.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            closeCampaignPopup();
+            onNavigate('campaign');
+          }}
+          className="group mt-6 inline-flex items-center gap-3 border border-white bg-white px-5 py-3 text-[9px] font-bold uppercase tracking-[0.22em] text-black transition-all duration-300 hover:bg-transparent hover:text-white"
+        >
+          <span>Découvrir</span>
+          <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+        </button>
+
+        <button
+          type="button"
+          onClick={closeCampaignPopup}
+          className="mt-4 text-[8px] uppercase tracking-[0.2em] text-white/30 transition-colors hover:text-white/60"
+        >
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+  {/* HERO */}
       {/* =========================================================
           HERO
       ========================================================= */}
@@ -359,3 +494,4 @@ export const HomePage: React.FC<HomePageProps> = ({
     </main>
   );
 };
+
