@@ -175,20 +175,49 @@ export const StoreAPI = {
   getCollections: (): Collection[] => loadData(STORAGE_KEYS.COLLECTIONS, INITIAL_COLLECTIONS),
   setCollections: (collections: Collection[]) => saveData(STORAGE_KEYS.COLLECTIONS, collections),
 
-  saveCollection: (collection: Collection) => {
-    const list = StoreAPI.getCollections();
-    const index = list.findIndex(c => c.id === collection.id);
-    if (index >= 0) {
-      list[index] = collection;
-    } else {
-      list.push(collection);
+  fetchBackendCollections: async (): Promise<Collection[]> => {
+    try {
+      const collections = await FirebaseService.getCollections();
+      // If Firestore has not been initialized yet, keep the existing local data.
+      // This allows the first admin login to migrate an already customized local catalog.
+      const normalized = collections.length > 0
+        ? collections as Collection[]
+        : StoreAPI.getCollections();
+      StoreAPI.setCollections(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Erreur récupération collections Firestore:', error);
+      return StoreAPI.getCollections();
     }
-    StoreAPI.setCollections([...list]);
   },
 
-  deleteCollection: (id: string) => {
-    const list = StoreAPI.getCollections().filter(c => c.id !== id);
-    StoreAPI.setCollections(list);
+  saveCollection: async (collection: Collection) => {
+    try {
+      const savedCollection = await FirebaseService.saveCollection(collection);
+      const list = StoreAPI.getCollections();
+      const index = list.findIndex(c => c.id === collection.id);
+      if (index >= 0) {
+        list[index] = savedCollection as Collection;
+      } else {
+        list.push(savedCollection as Collection);
+      }
+      StoreAPI.setCollections([...list]);
+      return savedCollection;
+    } catch (error) {
+      console.error('Erreur Firestore (collection):', error);
+      throw new Error("Impossible d'enregistrer la collection. Veuillez réessayer.");
+    }
+  },
+
+  deleteCollection: async (id: string) => {
+    try {
+      await FirebaseService.deleteCollection(id);
+      const list = StoreAPI.getCollections().filter(c => c.id !== id);
+      StoreAPI.setCollections(list);
+    } catch (error) {
+      console.error('Erreur suppression collection:', error);
+      throw error;
+    }
   },
 
   getSettings: (): BrandSettings => loadData(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS),
@@ -196,6 +225,65 @@ export const StoreAPI = {
 
   getCampaign: (): Campaign => loadData(STORAGE_KEYS.CAMPAIGN, INITIAL_CAMPAIGN),
   setCampaign: (campaign: Campaign) => saveData(STORAGE_KEYS.CAMPAIGN, campaign),
+
+  fetchBackendCampaign: async (): Promise<Campaign> => {
+    try {
+      const campaign = await FirebaseService.getCampaign();
+      // Keep the current local campaign until the first admin migration if
+      // Firestore does not contain one yet.
+      const normalized = (campaign || StoreAPI.getCampaign()) as Campaign;
+      StoreAPI.setCampaign(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Erreur récupération campaign Firestore:', error);
+      return StoreAPI.getCampaign();
+    }
+  },
+
+  saveCampaignToBackend: async (campaign: Campaign) => {
+    try {
+      await FirebaseService.saveCampaign(campaign);
+      StoreAPI.setCampaign(campaign);
+      return campaign;
+    } catch (error) {
+      console.error('Erreur sauvegarde campaign:', error);
+      throw new Error("Impossible d'enregistrer la campaign. Veuillez réessayer.");
+    }
+  },
+
+  // One-time migration for the catalog that was previously stored only in localStorage.
+  // This is intentionally called only from the authenticated admin area.
+  migrateLocalCatalogToBackend: async () => {
+    try {
+      const [backendCollections, backendCampaign] = await Promise.all([
+        FirebaseService.getCollections(),
+        FirebaseService.getCampaign(),
+      ]);
+
+      const localCollections = StoreAPI.getCollections();
+      const localCampaign = StoreAPI.getCampaign();
+
+      if (backendCollections.length === 0 && localCollections.length > 0) {
+        await Promise.all(
+          localCollections.map(collectionItem =>
+            FirebaseService.saveCollection(collectionItem)
+          )
+        );
+      }
+
+      if (!backendCampaign && localCampaign) {
+        await FirebaseService.saveCampaign(localCampaign);
+      }
+
+      // Refresh the local cache from Firestore after migration.
+      await Promise.all([
+        StoreAPI.fetchBackendCollections(),
+        StoreAPI.fetchBackendCampaign(),
+      ]);
+    } catch (error) {
+      console.error('Erreur migration catalogue Firestore:', error);
+    }
+  },
 
   getNotifications: (): PushNotification[] => loadData(STORAGE_KEYS.NOTIFICATIONS, INITIAL_NOTIFICATIONS),
   setNotifications: (notifs: PushNotification[]) => saveData(STORAGE_KEYS.NOTIFICATIONS, notifs),
@@ -592,6 +680,8 @@ export function useStore() {
     StoreAPI.fetchBackendOrders();
     StoreAPI.fetchBackendProducts();
     StoreAPI.fetchBackendSettings();
+    StoreAPI.fetchBackendCollections();
+    StoreAPI.fetchBackendCampaign();
     
     return () => {
       listeners.delete(handleUpdate);
@@ -612,8 +702,12 @@ export function useStore() {
     fetchBackendProducts: StoreAPI.fetchBackendProducts,
     saveCollection: StoreAPI.saveCollection,
     deleteCollection: StoreAPI.deleteCollection,
+    fetchBackendCollections: StoreAPI.fetchBackendCollections,
     setSettings: StoreAPI.setSettings,
     setCampaign: StoreAPI.setCampaign,
+    saveCampaignToBackend: StoreAPI.saveCampaignToBackend,
+    fetchBackendCampaign: StoreAPI.fetchBackendCampaign,
+    migrateLocalCatalogToBackend: StoreAPI.migrateLocalCatalogToBackend,
     addNotification: StoreAPI.addNotification,
     createOrder: StoreAPI.createOrder,
     updateOrderStatus: StoreAPI.updateOrderStatus,

@@ -91,6 +91,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     deleteCollection,
     setSettings,
     setCampaign,
+    saveCampaignToBackend,
+    migrateLocalCatalogToBackend,
     addNotification,
     createOrder,
     updateOrderStatus,
@@ -185,6 +187,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (adminAuth.isAuthenticated) {
+      // Migrate the catalog that was previously local-only into Firestore once.
+      // If Firestore already contains data, nothing is overwritten.
+      migrateLocalCatalogToBackend();
+    }
+  }, [adminAuth.isAuthenticated]);
 
   useEffect(() => {
     // Check push support
@@ -470,12 +480,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
     setIsCreatingCollection(true);
   };
 
-  const handleSaveCollectionForm = (e: React.FormEvent) => {
+  const handleSaveCollectionForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingCollection) {
-      saveCollection(editingCollection);
+    if (!editingCollection) return;
+
+    try {
+      await saveCollection(editingCollection);
       setEditingCollection(null);
       setIsCreatingCollection(false);
+    } catch (error: any) {
+      alert(error?.message || "Impossible d'enregistrer la collection.");
     }
   };
 
@@ -564,7 +578,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
         shots,
       };
 
-      setCampaign(nextCampaign);
+      await saveCampaignToBackend(nextCampaign);
       setEditingCampaign(nextCampaign);
       setCampaignCoverFile(null);
       setCampaignShotFiles({});

@@ -321,6 +321,49 @@ export const FirebaseService = {
   },
 
   // =========================
+  // COLLECTIONS & CAMPAIGN
+  // =========================
+
+  getCollections: async () => {
+    const collectionsRef = collection(db, 'collections');
+    const snapshot = await getDocs(collectionsRef);
+    return snapshot.docs.map((item: any) => ({
+      id: item.id,
+      ...item.data(),
+    }));
+  },
+
+  saveCollection: async (collectionData: any) => {
+    const collectionRef = doc(db, 'collections', collectionData.id);
+    await setDoc(collectionRef, {
+      ...collectionData,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return collectionData;
+  },
+
+  deleteCollection: async (collectionId: string) => {
+    const collectionRef = doc(db, 'collections', collectionId);
+    await deleteDoc(collectionRef);
+  },
+
+  getCampaign: async () => {
+    const campaignRef = doc(db, 'campaign', 'main');
+    const snapshot = await getDoc(campaignRef);
+    if (!snapshot.exists()) return null;
+    return snapshot.data();
+  },
+
+  saveCampaign: async (campaignData: any) => {
+    const campaignRef = doc(db, 'campaign', 'main');
+    await setDoc(campaignRef, {
+      ...campaignData,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return campaignData;
+  },
+
+  // =========================
   // SETTINGS
   // =========================
 

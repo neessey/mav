@@ -42,6 +42,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Public collections catalog — anyone can browse, only admins can edit.
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Public campaign/lookbook — anyone can browse, only admins can edit.
+    match /campaign/{campaignId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Everything else: closed by default. No more open catch-all.
     match /{document=**} {
       allow read, write: if false;
