@@ -1696,61 +1696,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                     )}
                   </div>
 
-                  {/* Broadcast New Drop Form */}
-                  <form onSubmit={handleSendNotification} className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
-                    <h3 className="font-display  text-base text-white uppercase">
-                      DIFFUSER UNE NOTIFICATION (NOUVEAU DROP)
-                    </h3>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-mono-brand uppercase text-neutral-400">Titre de la notification</label>
-                      <input
-                        type="text"
-                        value={notifTitle}
-                        onChange={(e) => setNotifTitle(e.target.value)}
-                        className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-mono-brand uppercase text-neutral-400">Message</label>
-                      <textarea
-                        rows={3}
-                        value={notifMessage}
-                        onChange={(e) => setNotifMessage(e.target.value)}
-                        className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-white text-black font-display  text-xs uppercase tracking-widest rounded hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Diffuser la notification</span>
-                    </button>
-                  </form>
+                
 
                 </div>
 
-                {/* Notification Preview Mockup (5 cols) */}
-                <div className="lg:col-span-5 p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
-                  <h3 className="font-display  text-base text-white uppercase">
-                    APERÇU DU RENDU SUR SMARTPHONE
-                  </h3>
-
-                  <div className="p-4 bg-black border border-white/20 rounded-xl space-y-2 shadow-2xl">
-                    <div className="flex items-center justify-between text-[10px] font-mono-brand text-neutral-400">
-                      <div className="flex items-center gap-1.5">
-<img src="/assets/logo.png" alt="Logo MARASSEURAVIE" className="w-4 h-4 object-cover rounded-sm" />
-                        <span className="font-bold text-white">MARASSEURAVIE</span>
-                      </div>
-                      <span>maintenant</span>
-                    </div>
-                    <span className="font-bold text-sm text-white block">{notifTitle}</span>
-                    <p className="text-xs text-neutral-300 font-sans">{notifMessage}</p>
-                  </div>
-                </div>
+               
 
               </div>
             </div>
@@ -1848,45 +1798,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                   </form>
                 </div>
 
-                {/* Réinitialisation par email */}
-                <div className="p-6 bg-[#0D0D0D] border border-neutral-800 rounded-sm space-y-4">
-                  <h3 className="font-display text-base text-white uppercase flex items-center gap-2">
-                    <Mail className="w-4 h-4" />
-                    RÉINITIALISATION PAR EMAIL
-                  </h3>
-                  <p className="text-xs text-neutral-400 font-mono-brand">
-                    Recevez un lien pour réinitialiser votre mot de passe par email.
-                  </p>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono-brand uppercase text-neutral-400">
-                      Email associé au compte
-                    </label>
-                    <input
-                      type="email"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full bg-black border border-neutral-800 text-white text-xs p-3 font-mono-brand focus:border-white focus:outline-none"
-                      placeholder="admin@marasseuravie.com"
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleResetPassword}
-                    disabled={isResettingPassword}
-                    className="w-full py-3 bg-neutral-900 hover:bg-neutral-800 text-white font-display text-xs uppercase tracking-widest rounded transition-colors border border-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isResettingPassword && <RefreshCw className="w-4 h-4 animate-spin" />}
-                    <span>{isResettingPassword ? 'Envoi en cours...' : 'ENVOYER LE LIEN DE RÉINITIALISATION'}</span>
-                  </button>
-
-                  <div className="pt-4 border-t border-neutral-800">
-                    <div className="flex items-center gap-2 text-[10px] text-neutral-500 font-mono-brand">
-                      <Info className="w-3 h-3" />
-                      <span>Le lien de réinitialisation expire après 1 heure.</span>
-                    </div>
-                  </div>
-                </div>
+              
               </div>
 
               {/* Informations du compte */}

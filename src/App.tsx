@@ -159,7 +159,7 @@ export default function App() {
       />
 
       {/* PWA Mobile Installation Prompt Banner */}
-      <PWAInstallBanner />
+      {/* <PWAInstallBanner /> */}
 
     </div>
   );
