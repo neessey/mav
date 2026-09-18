@@ -155,6 +155,16 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     // redirect this already-open tab to the real WhatsApp URL once it's ready below.
     const whatsappWindow = method === 'cod' ? window.open('about:blank', '_blank') : null;
 
+    // BUG FIX (iOS Wave handoff): the same activation loss breaks Wave's Universal Link
+    // hand-off to the native app on iPhone. `window.location.assign(WAVE_MERCHANT_LINK)`
+    // used to run only after `await createOrder(...)` below — by then iOS no longer
+    // treats the navigation as tied to the user's tap, so instead of opening the Wave
+    // app it falls back to loading pay.wave.com as a plain webpage, which then serves
+    // its own "download the app" page → App Store. Pre-opening a tab HERE (still inside
+    // the click) and redirecting that same tab once the order is ready keeps the
+    // hand-off close enough to the tap for iOS to honor it, exactly like the fix above.
+    const waveWindow = method === 'wave' ? window.open('about:blank', '_blank') : null;
+
     setProcessingMethod(method);
     setIsOrdering(true);
     setIsSubmittingDelivery(true);
@@ -225,7 +235,13 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
             whatsappUrl: whatsappUrl,
           })
         );
-        window.location.assign(WAVE_MERCHANT_LINK);
+        if (waveWindow) {
+          waveWindow.location.href = WAVE_MERCHANT_LINK;
+        } else {
+          // Fallback: the pre-opened tab failed (rare) — navigate the current tab instead
+          // of doing nothing, so the customer's order isn't left dangling.
+          window.location.assign(WAVE_MERCHANT_LINK);
+        }
       } else {
         if (whatsappWindow) {
           whatsappWindow.location.href = whatsappUrl;
@@ -239,6 +255,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
 
     } catch (err) {
       if (whatsappWindow) whatsappWindow.close();
+      if (waveWindow) waveWindow.close();
       console.error('Order creation error:', err);
       alert('Une erreur est survenue lors de la création de la commande. Veuillez réessayer.');
     } finally {

@@ -685,7 +685,6 @@ export function useStore() {
     listeners.add(handleUpdate);
     
     // Initial fetch
-    StoreAPI.fetchBackendOrders();
     StoreAPI.fetchBackendProducts();
     StoreAPI.fetchBackendSettings();
     StoreAPI.fetchBackendCollections();

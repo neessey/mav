@@ -22,9 +22,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const mainImage = product.images[0] || 'https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?auto=format&fit=crop&q=80&w=1200';
   const hoverImage = product.images[1] || mainImage;
   const isAvailable = product.status === 'available' || product.status === 'preorder';
+  const isSoldOut = product.status === 'sold_out';
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isAvailable) return;
     addToCart(product, product.sizes[0] || 'M', product.colors[0]?.name || 'Noir', 1);
   };
 
@@ -41,12 +43,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img          src={isHovered && hoverImage !== mainImage ? hoverImage : mainImage}
           alt={product.name}
           referrerPolicy="no-referrer"
-          className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
+          className={`w-full h-full object-cover object-center transition-transform duration-700 ease-out ${
+            isSoldOut ? 'grayscale opacity-40' : 'group-hover:scale-105'
+          }`}
           loading="eager"
         />
 
         {/* Top Badges */}
-        {product.badge && (
+        {product.badge && !isSoldOut && (
           <div className="absolute top-3 right-3 z-10">
             <span
               id={`badge-${product.id}`}
@@ -57,20 +61,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
 
-       
+        {/* Sold Out Overlay */}
+        {isSoldOut && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30">
+            <span
+              id={`soldout-${product.id}`}
+              className="text-xs uppercase font-mono-brand font-bold px-4 py-1.5 tracking-[0.2em] bg-black/85 text-white border border-white/30"
+            >
+              Épuisé
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Meta info below image */}
       <div className="pt-3 pb-1 flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="font-display  text-sm tracking-wider text-white uppercase group-hover:text-neutral-300 transition-colors">
+          <h3 className={`font-display  text-sm tracking-wider uppercase transition-colors ${
+            isSoldOut ? 'text-neutral-500' : 'text-white group-hover:text-neutral-300'
+          }`}>
             {product.name}
           </h3>
          
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="font-mono-brand font-medium text-xs text-neutral-300 tracking-wider">
+          <span className={`font-mono-brand font-medium text-xs tracking-wider ${
+            isSoldOut ? 'text-neutral-600' : 'text-neutral-300'
+          }`}>
             {product.price.toLocaleString('fr-FR')} {settings.currency}
           </span>
         </div>

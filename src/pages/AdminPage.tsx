@@ -143,6 +143,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [productSaveError, setProductSaveError] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
 
   // Collection editing state
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null);
@@ -442,6 +443,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
       setProductSaveError(err?.message || 'Impossible d\'enregistrer le produit. Réessaie.');
     } finally {
       setIsSavingProduct(false);
+    }
+  };
+
+  // Bascule rapide du statut d'un produit depuis la liste (ex: marquer "épuisé" en un clic)
+  const handleToggleSoldOut = async (product: Product) => {
+    const nextStatus: ProductStatus = product.status === 'sold_out' ? 'available' : 'sold_out';
+    setTogglingStatusId(product.id);
+    try {
+      await saveProduct({ ...product, status: nextStatus });
+    } catch (err) {
+      console.error('Erreur mise à jour du statut:', err);
+      alert("Impossible de mettre à jour le statut. Réessaie.");
+    } finally {
+      setTogglingStatusId(null);
     }
   };
 
@@ -1477,13 +1492,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                         <img loading="lazy" src={p.images[0]} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-neutral-900 border border-neutral-800 text-neutral-400">
                             {p.category}
                           </span>
                           {p.badge && (
                             <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-white text-black font-bold">
                               {p.badge}
+                            </span>
+                          )}
+                          {p.status === 'sold_out' && (
+                            <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-red-950/60 border border-red-900/50 text-red-400 font-bold">
+                              Épuisé
+                            </span>
+                          )}
+                          {p.status === 'preorder' && (
+                            <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-amber-950/60 border border-amber-900/50 text-amber-400 font-bold">
+                              Précommande
+                            </span>
+                          )}
+                          {p.status === 'coming_soon' && (
+                            <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-blue-950/60 border border-blue-900/50 text-blue-400 font-bold">
+                              Bientôt
+                            </span>
+                          )}
+                          {p.status === 'archived' && (
+                            <span className="text-[9px] font-mono-brand uppercase px-1.5 py-0.5 bg-neutral-800 border border-neutral-700 text-neutral-500 font-bold">
+                              Archivé
                             </span>
                           )}
                         </div>
@@ -1500,6 +1535,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                     </div>
 
                     <div className="flex items-center justify-end gap-2 border-t border-neutral-800 pt-3">
+                      <button
+                        onClick={() => handleToggleSoldOut(p)}
+                        disabled={togglingStatusId === p.id}
+                        className={`px-3 py-1.5 text-xs font-mono-brand border rounded flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed ${
+                          p.status === 'sold_out'
+                            ? 'bg-green-950/30 hover:bg-green-950/50 text-green-400 border-green-900/50'
+                            : 'bg-red-950/20 hover:bg-red-950/40 text-red-400 border-red-900/40'
+                        }`}
+                        title={p.status === 'sold_out' ? 'Remettre en stock' : 'Marquer comme épuisé'}
+                      >
+                        {togglingStatusId === p.id ? (
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <AlertCircle className="w-3 h-3" />
+                        )}
+                        <span>{p.status === 'sold_out' ? 'Remettre en stock' : 'Épuisé'}</span>
+                      </button>
                       <button
                         onClick={() => {
                           setEditingProduct({ ...p });
@@ -1887,6 +1939,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate, initialOrderId
                     className="w-full bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono-brand uppercase text-neutral-400">Statut</label>
+                <select
+                  value={editingProduct.status}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, status: e.target.value as ProductStatus })}
+                  className="w-full bg-black border border-neutral-800 text-white text-xs p-2.5 font-mono-brand focus:border-white focus:outline-none"
+                >
+                  <option value="available">Disponible</option>
+                  <option value="sold_out">Épuisé (sold out)</option>
+                  <option value="preorder">Précommande</option>
+                  <option value="coming_soon">Bientôt disponible</option>
+                  <option value="archived">Archivé</option>
+                </select>
+                <p className="text-[10px] font-mono-brand text-neutral-500">
+                  "Épuisé" grise le produit et bloque l'ajout au panier côté boutique.
+                </p>
               </div>
 
               <div className="space-y-2">
