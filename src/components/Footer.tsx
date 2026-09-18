@@ -69,7 +69,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </div>
               
               <p className="text-neutral-400 text-xs sm:text-sm leading-relaxed max-w-sm tracking-wide">
-                Maison de streetwear contemporain. Tricots haute densité, coupes architecturales et silhouettes audacieuses pour marquer votre histoire.
+                Maison de streetwear. Tricots haute densité, coupes architecturales et silhouettes audacieuses pour marquer votre histoire.
               </p>
             </div>
 

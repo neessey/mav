@@ -13,7 +13,7 @@ export const INITIAL_SETTINGS: BrandSettings = {
   foundedYear: '2025',
   tagline: 'WEAR YOUR STORY.',
   subTagline: 'STREETWEAR ÉDITORIAL — ABIDJAN & MONDE',
-  whatsappNumber: '2250504272827',
+  whatsappNumber: '2250715382264',
   whatsappFormatted: '+225 07 15 38 22 64',
   instagram: 'https://instagram.com/marasseuravie',
   tiktok: 'https://www.tiktok.com/@mav.streetwear?_r=1&_t=ZS-991LZbLYjtY',

@@ -5,7 +5,7 @@ import { ArrowLeft, MessageCircle, ShoppingBag, Check, ShieldCheck, Truck, Spark
 import confetti from 'canvas-confetti';
 import { ProductCard } from '../components/ProductCard';
 
-const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_waw-9EveeQZb/c/ci';
+const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_NiFtdXeHAg97/c/ci/';
 
 interface DeliveryFormData {
   fullName: string;

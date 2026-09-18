@@ -4,7 +4,7 @@ import { useStore } from '../services/store';
 import { PageView } from '../types';
 import confetti from 'canvas-confetti';
 
-const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_waw-9EveeQZb/c/ci';
+const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_NiFtdXeHAg97/c/ci/';
 
 interface DeliveryFormData {
   fullName: string;
