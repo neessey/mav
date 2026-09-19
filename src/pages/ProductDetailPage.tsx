@@ -147,63 +147,12 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     }
   };
 
-  const processOrder = async (method: PaymentMethod) => {
-    // BUG FIX (mobile Safari/Chrome): window.open() called after an `await` loses the
-    // "user activation" the click gave us, so mobile browsers silently block it (iOS) or
-    // show a "popup blocked" banner requiring manual approval (Android). Opening a blank
-    // tab HERE — synchronously, still inside the click — keeps that activation. We just
-    // redirect this already-open tab to the real WhatsApp URL once it's ready below.
-    const whatsappWindow = method === 'cod' ? window.open('about:blank', '_blank') : null;
+  // Construit le récapitulatif WhatsApp à partir des données déjà en mémoire
+  // (aucun accès réseau nécessaire — donc utilisable de façon 100% synchrone).
+  const buildWhatsAppOrder = (method: PaymentMethod) => {
+    const orderTotal = product.price * quantity;
 
-    // BUG FIX (iOS Wave handoff): the same activation loss breaks Wave's Universal Link
-    // hand-off to the native app on iPhone. `window.location.assign(WAVE_MERCHANT_LINK)`
-    // used to run only after `await createOrder(...)` below — by then iOS no longer
-    // treats the navigation as tied to the user's tap, so instead of opening the Wave
-    // app it falls back to loading pay.wave.com as a plain webpage, which then serves
-    // its own "download the app" page → App Store. Pre-opening a tab HERE (still inside
-    // the click) and redirecting that same tab once the order is ready keeps the
-    // hand-off close enough to the tap for iOS to honor it, exactly like the fix above.
-    const waveWindow = method === 'wave' ? window.open('about:blank', '_blank') : null;
-
-    setProcessingMethod(method);
-    setIsOrdering(true);
-    setIsSubmittingDelivery(true);
-    
-    confetti({
-      particleCount: 60,
-      spread: 60,
-      origin: { y: 0.8 },
-      colors: ['#ffffff', '#22c55e', '#525252']
-    });
-
-    try {
-      const orderTotal = product.price * quantity;
-      
-      const order = await createOrder({
-        items: [
-          {
-            productId: product.id,
-            name: product.name,
-            size: selectedSize,
-            color: selectedColor,
-            quantity: quantity,
-            unitPrice: product.price,
-            total: orderTotal,
-            image: product.images[0]
-          }
-        ],
-        totalAmount: orderTotal,
-        customerName: deliveryFormData.fullName,
-        customerPhone: deliveryFormData.phone,
-        customerCity: deliveryFormData.city,
-        notes: `Commande depuis fiche produit ${product.name} — Paiement : ${
-          method === 'wave' ? 'Wave' : 'À la livraison'
-        }\nAdresse: ${deliveryFormData.deliveryAddress}\nInstructions: ${deliveryFormData.deliveryInstructions || 'Aucune'}`,
-        whatsappMessage: undefined,
-        whatsappUrl: undefined
-      });
-
-      const orderSummary = `
+    const orderSummary = `
  *Bonjour MARASSEURAVIE* 
  Je souhaite valider ma commande :
 ━━━━━━━━━━━━━━━━━
@@ -222,40 +171,116 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
 ━━━━━━━━━━━━━━━━━
 `;
 
-      const phoneNumber = settings.whatsappNumber.replace(/[^0-9]/g, '');
-      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(orderSummary)}`;
+    const phoneNumber = settings.whatsappNumber.replace(/[^0-9]/g, '');
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(orderSummary)}`;
+
+    return { orderTotal, whatsappUrl };
+  };
+
+  // Enregistre la commande dans Firestore. Utilisé en tâche de fond pour Wave
+  // (voir plus bas) et en direct (await) pour le paiement à la livraison.
+  const persistOrder = (method: PaymentMethod, orderTotal: number) => {
+    return createOrder({
+      items: [
+        {
+          productId: product.id,
+          name: product.name,
+          size: selectedSize,
+          color: selectedColor,
+          quantity: quantity,
+          unitPrice: product.price,
+          total: orderTotal,
+          image: product.images[0]
+        }
+      ],
+      totalAmount: orderTotal,
+      customerName: deliveryFormData.fullName,
+      customerPhone: deliveryFormData.phone,
+      customerCity: deliveryFormData.city,
+      notes: `Commande depuis fiche produit ${product.name} — Paiement : ${
+        method === 'wave' ? 'Wave' : 'À la livraison'
+      }\nAdresse: ${deliveryFormData.deliveryAddress}\nInstructions: ${deliveryFormData.deliveryInstructions || 'Aucune'}`,
+      whatsappMessage: undefined,
+      whatsappUrl: undefined
+    });
+  };
+
+  const processOrder = async (method: PaymentMethod) => {
+    if (method === 'wave') {
+      // BUG FIX (iOS Wave handoff, v2) : ouvrir un onglet vide puis le rediriger une
+      // fois la commande créée (v1 de ce correctif) a un défaut sur certains iPhone —
+      // Universal Links ne se déclenche pas de façon fiable dans un onglet ouvert via
+      // window.open(), donc l'onglet reste bloqué sur "about:blank" au lieu de basculer
+      // vers l'app Wave. La seule approche fiable sur iOS est de naviguer dans LE MÊME
+      // onglet, tout de suite, sans aucun `await` avant — car un `await` (l'écriture
+      // Firestore) fait perdre l'activation utilisateur du clic avant que la navigation
+      // ne parte, et iOS refuse alors le hand-off vers l'app.
+      //
+      // On a donc besoin de tout ce qu'il faut pour rediriger AVANT tout `await`. Le
+      // récapitulatif WhatsApp ne dépend que de données déjà en mémoire (produit,
+      // quantité, formulaire de livraison) — pas besoin d'attendre Firestore pour le
+      // construire. L'écriture en base est faite ensuite, en arrière-plan : elle
+      // continue de s'exécuter même si l'utilisateur a déjà quitté vers l'app Wave.
+      const { orderTotal, whatsappUrl } = buildWhatsAppOrder('wave');
+
+      sessionStorage.setItem('pendingWaveOrder', JSON.stringify({ whatsappUrl }));
+      setShowPaymentModal(false);
+      setProcessingMethod('wave');
+
+      confetti({
+        particleCount: 60,
+        spread: 60,
+        origin: { y: 0.8 },
+        colors: ['#ffffff', '#22c55e', '#525252']
+      });
+
+      // Navigation synchrone, dans l'onglet courant — rien entre le clic et cette ligne.
+      window.location.assign(WAVE_MERCHANT_LINK);
+
+      // Écriture Firestore en arrière-plan (non bloquante, non "awaited") : la commande
+      // est quand même enregistrée même si la page se met en pause juste après.
+      persistOrder('wave', orderTotal).catch((err) => {
+        console.error('Erreur création commande Wave (arrière-plan):', err);
+      });
+
+      return;
+    }
+
+    // BUG FIX (mobile Safari/Chrome): window.open() called after an `await` loses the
+    // "user activation" the click gave us, so mobile browsers silently block it (iOS) or
+    // show a "popup blocked" banner requiring manual approval (Android). Opening a blank
+    // tab HERE — synchronously, still inside the click — keeps that activation. We just
+    // redirect this already-open tab to the real WhatsApp URL once it's ready below.
+    const whatsappWindow = window.open('about:blank', '_blank');
+
+    setProcessingMethod('cod');
+    setIsOrdering(true);
+    setIsSubmittingDelivery(true);
+
+    confetti({
+      particleCount: 60,
+      spread: 60,
+      origin: { y: 0.8 },
+      colors: ['#ffffff', '#22c55e', '#525252']
+    });
+
+    try {
+      const { orderTotal, whatsappUrl } = buildWhatsAppOrder('cod');
+      await persistOrder('cod', orderTotal);
 
       setShowPaymentModal(false);
 
-      if (method === 'wave') {
-        sessionStorage.setItem(
-          'pendingWaveOrder',
-          JSON.stringify({
-            orderId: order.id,
-            whatsappUrl: whatsappUrl,
-          })
-        );
-        if (waveWindow) {
-          waveWindow.location.href = WAVE_MERCHANT_LINK;
-        } else {
-          // Fallback: the pre-opened tab failed (rare) — navigate the current tab instead
-          // of doing nothing, so the customer's order isn't left dangling.
-          window.location.assign(WAVE_MERCHANT_LINK);
-        }
+      if (whatsappWindow) {
+        whatsappWindow.location.href = whatsappUrl;
       } else {
-        if (whatsappWindow) {
-          whatsappWindow.location.href = whatsappUrl;
-        } else {
-          // Fallback: the pre-opened tab failed (rare) — navigate the current tab instead
-          // of doing nothing, so the customer's order isn't left dangling.
-          window.location.assign(whatsappUrl);
-        }
-        resetDeliveryForm();
+        // Fallback: the pre-opened tab failed (rare) — navigate the current tab instead
+        // of doing nothing, so the customer's order isn't left dangling.
+        window.location.assign(whatsappUrl);
       }
+      resetDeliveryForm();
 
     } catch (err) {
       if (whatsappWindow) whatsappWindow.close();
-      if (waveWindow) waveWindow.close();
       console.error('Order creation error:', err);
       alert('Une erreur est survenue lors de la création de la commande. Veuillez réessayer.');
     } finally {
