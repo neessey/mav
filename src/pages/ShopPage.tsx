@@ -18,6 +18,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
   const { products, settings } = useStore();
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState<number>(100000);
   const [selectedAvailability, setSelectedAvailability] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price-asc' | 'price-desc'>('newest');
@@ -39,6 +40,33 @@ export const ShopPage: React.FC<ShopPageProps> = ({
     );
   };
 
+  // Toggle color filter (a product matches if it has at least one selected color)
+  const toggleColor = (colorHex: string) => {
+    const normalizedHex = colorHex.toLowerCase();
+    setSelectedColors(prev =>
+      prev.includes(normalizedHex)
+        ? prev.filter(color => color !== normalizedHex)
+        : [...prev, normalizedHex]
+    );
+  };
+
+  // Colors actually used by products in the catalog
+  const availableColors = useMemo(() => {
+    const uniqueColors = new Map<string, { name: string; hex: string }>();
+    products.forEach(product => {
+      (product.colors || []).forEach(color => {
+        if (!color?.hex) return;
+        const hex = color.hex.trim().toLowerCase();
+        if (!uniqueColors.has(hex)) {
+          uniqueColors.set(hex, { name: color.name || hex, hex });
+        }
+      });
+    });
+    return Array.from(uniqueColors.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'fr')
+    );
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       // Category filter
@@ -50,6 +78,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
         const hasMatchingSize = p.sizes.some(s => selectedSizes.includes(s));
         if (!hasMatchingSize) return false;
       }
+      // Color filter
+      if (selectedColors.length > 0) {
+        const productColors = (p.colors || []).map(color => color.hex?.trim().toLowerCase());
+        if (!selectedColors.some(color => productColors.includes(color))) return false;
+      }
+
       // Price filter
       if (p.price > maxPrice) {
         return false;
@@ -67,7 +101,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({
       if (sortBy === 'price-desc') return b.price - a.price;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [products, selectedCategory, selectedSizes, maxPrice, selectedAvailability, sortBy]);
+  }, [products, selectedCategory, selectedSizes, selectedColors, maxPrice, selectedAvailability, sortBy]);
 
   // Counts for sidebar
   const categoryCounts = useMemo(() => {
@@ -212,6 +246,52 @@ export const ShopPage: React.FC<ShopPageProps> = ({
               </div>
             </div>
 
+            {/* Filter Group: Couleurs */}
+            {availableColors.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
+                <span className="text-xs font-bold font-mono-brand uppercase tracking-[0.2em] text-white">
+                  COULEUR
+                </span>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {availableColors.map(color => {
+                    const isSelected = selectedColors.includes(color.hex);
+                    return (
+                      <button
+                        key={color.hex}
+                        type="button"
+                        onClick={() => toggleColor(color.hex)}
+                        title={color.name}
+                        aria-label={`Filtrer par couleur ${color.name}`}
+                        aria-pressed={isSelected}
+                        className={`group flex flex-col items-center gap-1.5 rounded-sm p-1 transition-colors ${
+                          isSelected ? 'ring-1 ring-white ring-offset-2 ring-offset-black' : 'hover:ring-1 hover:ring-neutral-500'
+                        }`}
+                      >
+                        <span
+                          className="h-6 w-6 rounded-full border border-white/20 shadow-sm"
+                          style={{ backgroundColor: color.hex }}
+                        />
+                        <span className={`max-w-[64px] truncate text-[9px] font-mono-brand uppercase ${
+                          isSelected ? 'text-white' : 'text-neutral-500 group-hover:text-neutral-300'
+                        }`}>
+                          {color.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedColors.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedColors([])}
+                    className="self-start text-[10px] font-mono-brand text-neutral-500 underline hover:text-white"
+                  >
+                    Effacer les couleurs ({selectedColors.length})
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Filter Group: Prix */}
             <div className="flex flex-col gap-3 border-t border-neutral-900 pt-6">
               <span className="text-xs font-bold font-mono-brand uppercase tracking-[0.2em] text-white">
@@ -262,11 +342,12 @@ export const ShopPage: React.FC<ShopPageProps> = ({
             </div>
 
             {/* Reset Button */}
-            {(selectedCategory !== 'all' || selectedSizes.length > 0 || maxPrice < 100000 || selectedAvailability !== 'all') && (
+            {(selectedCategory !== 'all' || selectedSizes.length > 0 || selectedColors.length > 0 || maxPrice < 100000 || selectedAvailability !== 'all') && (
               <button
                 onClick={() => {
                   setSelectedCategory('all');
                   setSelectedSizes([]);
+                  setSelectedColors([]);
                   setMaxPrice(100000);
                   setSelectedAvailability('all');
                 }}
