@@ -6,6 +6,15 @@ import confetti from 'canvas-confetti';
 
 const WAVE_MERCHANT_LINK = 'https://pay.wave.com/m/M_ci_NiFtdXeHAg97/c/ci/';
 
+const WAVE_FEE_PERCENT = 1;
+
+// Math.ceil pour toujours arrondir au FCFA supérieur (pas de décimales chez Wave)
+const getWaveTotal = (amount: number) =>
+  Math.ceil((amount * (100 + WAVE_FEE_PERCENT)) / 100);
+
+const buildWaveLink = (amount: number) =>
+  `${WAVE_MERCHANT_LINK}?amount=${getWaveTotal(amount)}`;
+
 interface DeliveryFormData {
   fullName: string;
   phone: string;
@@ -176,8 +185,7 @@ export const QuickCartDrawer: React.FC<QuickCartDrawerProps> = ({
 ${cart.map((item, index) => ` *Article ${index + 1}:* ${item.product.name}\n *Taille:* ${item.selectedSize}\n *Couleur:* ${item.selectedColor}\n *Quantité:* ${item.quantity}\n *Sous-total:* ${(item.product.price * item.quantity).toLocaleString('fr-FR')} FCFA`).join('\n━━━━━━━━━━━━━━━━━\n')}
 ━━━━━━━━━━━━━━━━━
  *Total:* ${totalAmount.toLocaleString('fr-FR')} FCFA
- *Paiement:* ${method === 'wave' ? 'Wave (déjà effectué)' : 'À la livraison'}
-━━━━━━━━━━━━━━━━━
+ *Paiement:* ${method === 'wave' ? `Wave (déjà effectué : ${getWaveTotal(totalAmount).toLocaleString('fr-FR')} FCFA, frais 1% inclus)` : 'À la livraison'}━━━━━━━━━━━━━━━━━
  *Client:* ${deliveryFormData.fullName}
  *Téléphone:* ${deliveryFormData.phone}
  *Ville:* ${deliveryFormData.city}
@@ -202,7 +210,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
         clearCart();
         resetDeliveryForm();
         onClose();
-        window.location.assign(WAVE_MERCHANT_LINK);
+        window.location.assign(buildWaveLink(totalAmount));
       } else {
         if (whatsappWindow) {
           whatsappWindow.location.href = whatsappUrl;
@@ -471,8 +479,10 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs font-bold uppercase tracking-widest">Payer avec Wave</span>
-                  <span className="text-[11px] text-neutral-500 font-mono-brand">Redirection vers Wave, puis retour ici</span>
-                </div>
+<span className="text-[11px] text-neutral-500 font-mono-brand">
+  Total Wave : {getWaveTotal(totalAmount).toLocaleString('fr-FR')} {settings.currency} (frais 1% inclus)
+</span>               
+ </div>
               </button>
             </div>
 
