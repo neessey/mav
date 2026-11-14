@@ -35,7 +35,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     subtitle: 'Tricot Signature Noir 520 GSM — Coupe Boxy',
     description: 'La pièce emblématique MARASSEURAVIE. Tricot confectionné en maille dense premium noire avec grand logo circulaire emblème et typographie MAV sur la manche. Finition haute précision.',
     details: [
-      'Maille lourde 100% coton peigné 520 GSM',
+      'Maille lourde 100% coton ',
       'Coupe boxy décontractée avec tombé rigide',
       'Emblème circulaire MAV imprimé haute tenue',
       'Détail signature sur la manche'
