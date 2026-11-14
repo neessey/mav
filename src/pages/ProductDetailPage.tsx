@@ -557,7 +557,7 @@ ${deliveryFormData.deliveryInstructions ? ` *Instructions:* ${deliveryFormData.d
               </div>
               <div className="flex items-center gap-3">
                 <Sparkles className="w-4 h-4 text-neutral-300" />
-                <span>{product.composition || '100% Coton Premium'}</span>
+                <span>100% Coton</span>
               </div>
             </div>
 
