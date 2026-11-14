@@ -52,7 +52,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     badge: 'NEW',
     featured: true,
     isNewDrop: true,
-    composition: '100% Coton Peigné Maille Lourde',
+    composition: '100% Coton',
     care: 'Lavage délicat à la main ou à froid 30°C.',
     createdAt: '2025-01-15T10:00:00Z',
     updatedAt: '2025-02-01T12:00:00Z'
